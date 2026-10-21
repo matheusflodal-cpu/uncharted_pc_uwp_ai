@@ -20,6 +20,10 @@ uint64_t uncharted_uwp_app_memory_usage(void) {
 }
 uint64_t uncharted_uwp_app_memory_limit(void) { return UINT64_C(5120)<<20; }
 void uncharted_uwp_pager_thread_init(void) {}
+#ifdef UNCHARTED_RESOLVER_CONTRACT
+extern int uncharted_renderer_contract(void);
+int main(void) { return uncharted_renderer_contract(); }
+#else
 int main(int argc,char **argv) {
     if(argc!=2) { fputs("Usage: uncharted_memory_contract <existing private work directory>\n",stderr); return 1; }
     char swap[32768];
@@ -32,3 +36,5 @@ int main(int argc,char **argv) {
     printf("Memory contract result: %d\n",result); fflush(NULL);
     return result;
 }
+
+#endif

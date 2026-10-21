@@ -52,10 +52,18 @@ void runtime_memory_set_gpu_hooks(RuntimeGpuRange map, RuntimeGpuRange unmap, Ru
 
 Frontend::WindowSDL* g_window = nullptr;
 
-namespace Libraries::GnmDriver { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
+namespace Libraries::GnmDriver {
+void InitializeDriver();
+void RegisterSymbols(Core::Loader::SymbolsResolver* sym);
+void RegisterLib(Core::Loader::SymbolsResolver* sym);
+}
 namespace Libraries::AvPlayer { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
 namespace Libraries::Videodec2 { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
-namespace Libraries::VideoOut { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
+namespace Libraries::VideoOut {
+void InitializeDriver();
+void RegisterSymbols(Core::Loader::SymbolsResolver* sym);
+void RegisterLib(Core::Loader::SymbolsResolver* sym);
+}
 namespace Libraries::Kernel { void RegisterEventQueue(Core::Loader::SymbolsResolver* sym); }
 
 namespace {
@@ -266,8 +274,14 @@ extern "C" int bbgpu_init(const BbGpuConfig* config) {
     }
     Core::Loader::SymbolsResolver resolver;
     // GnmDriver creates the presenter that the VideoOut present thread uses.
+#ifdef UNCHARTED_UWP
+    // The loader already registered these addresses before --list-missing.
+    Libraries::GnmDriver::InitializeDriver();
+    Libraries::VideoOut::InitializeDriver();
+#else
     Libraries::GnmDriver::RegisterLib(&resolver);
     Libraries::VideoOut::RegisterLib(&resolver);
+#endif
     return 0;
 }
 
@@ -276,6 +290,11 @@ extern "C" void bbnet_register(void); // bbnet/bbnet_glue.cpp: network and PSN (
 extern "C" void bbgpu_register_kernel(void) {
     Libraries::Kernel::StartKernelService();
     Core::Loader::SymbolsResolver resolver;
+#ifdef UNCHARTED_UWP
+    Libraries::GnmDriver::RegisterSymbols(&resolver);
+    Libraries::VideoOut::RegisterSymbols(&resolver);
+    std::printf("UWP: graphics import addresses registered before GPU initialization\n");
+#endif
     Libraries::Kernel::RegisterEventQueue(&resolver);
     Libraries::AvPlayer::RegisterLib(&resolver);
     Libraries::Videodec2::RegisterLib(&resolver);

@@ -12,6 +12,8 @@ set(UNCHARTED_DEPS "${CMAKE_CURRENT_LIST_DIR}/.local/deps" CACHE PATH "Pinned wi
 if(NOT EXISTS "${UNCHARTED_DEPS}/winpthreads/include/pthread.h")
   message(FATAL_ERROR "Run python xbox/scripts/fetch-deps.py first")
 endif()
+option(UNCHARTED_GRAPHICS_PROBE "Build the Xbox graphics presentation probe" OFF)
+option(UNCHARTED_COMPILE_RENDERER "Compile the experimental renderer library without enabling gameplay" OFF)
 set(cpu_sources runtime runtime_content runtime_file runtime_kernel runtime_memory
   runtime_mutex runtime_rtc runtime_rwlock runtime_savedata runtime_sema runtime_services
   runtime_thread runtime_time runtime_fiber compat_win probe)
@@ -24,7 +26,20 @@ target_compile_options(uncharted_prepare_contract PRIVATE /W3 /EHsc)
 
 add_executable(uncharted_memory_contract platform/memory_contract_host.c platform/runtime_compat.c
   platform/diagnostic_services.c ${cpu_sources})
-foreach(cpu_target uncharted_uwp uncharted_memory_contract)
+set(cpu_targets uncharted_uwp uncharted_memory_contract)
+if(UNCHARTED_COMPILE_RENDERER AND UNCHARTED_GRAPHICS_PROBE)
+  add_executable(uncharted_renderer_contract platform/memory_contract_host.c platform/runtime_compat.c
+    platform/diagnostic_services.c graphics/resolver_contract.cpp graphics/present_bridge.cpp ${cpu_sources})
+  target_compile_definitions(uncharted_renderer_contract PRIVATE UNCHARTED_RESOLVER_CONTRACT UNCHARTED_LINK_RENDERER VK_USE_PLATFORM_WIN32_KHR)
+  target_include_directories(uncharted_renderer_contract BEFORE PRIVATE "${UNCHARTED_ROOT}/gpu/shim"
+    "${CMAKE_BINARY_DIR}/gpu/include" "${UNCHARTED_ROOT}/gpu/third_party/gcn/include")
+  target_include_directories(uncharted_renderer_contract PRIVATE graphics "${UNCHARTED_ROOT}/gpu/shadps4"
+    "${UNCHARTED_DEPS}/vulkan-headers/include")
+  target_compile_features(uncharted_renderer_contract PRIVATE cxx_std_23)
+  target_link_libraries(uncharted_renderer_contract PRIVATE bbgpu psapi d3d12 dxgi dxguid)
+  list(APPEND cpu_targets uncharted_renderer_contract)
+endif()
+foreach(cpu_target IN LISTS cpu_targets)
 target_include_directories(${cpu_target} PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_ROOT}/src"
   platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
 target_compile_definitions(${cpu_target} PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN
@@ -53,7 +68,6 @@ add_custom_command(TARGET uncharted_uwp POST_BUILD
 
 # The bridge probe validates real Dozen -> D3D12 -> CoreWindow presentation.
 # It deliberately does not enable the unfinished guest renderer.
-option(UNCHARTED_GRAPHICS_PROBE "Build the Xbox graphics presentation probe" OFF)
 if(UNCHARTED_GRAPHICS_PROBE)
   target_sources(uncharted_uwp PRIVATE graphics/present_bridge.cpp graphics/probe.cpp)
   target_include_directories(uncharted_uwp PRIVATE graphics "${UNCHARTED_ROOT}/gpu/shadps4"
@@ -62,7 +76,6 @@ if(UNCHARTED_GRAPHICS_PROBE)
   target_link_libraries(uncharted_uwp PRIVATE d3d12 dxgi dxguid)
 endif()
 
-option(UNCHARTED_COMPILE_RENDERER "Compile the experimental renderer library without enabling gameplay" OFF)
 if(UNCHARTED_COMPILE_RENDERER)
   set(UNCHARTED_UWP ON)
   add_subdirectory("${UNCHARTED_ROOT}/gpu" "${CMAKE_BINARY_DIR}/gpu")

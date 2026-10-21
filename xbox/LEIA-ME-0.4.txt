@@ -1,4 +1,4 @@
-UNCHARTED UWP 0.4 — PREPARACAO NO XBOX / TESTE DE INICIALIZACAO
+UNCHARTED UWP 0.4.1 — PREPARACAO NO XBOX / TESTE DE INICIALIZACAO
 
 Ainda nao e uma versao jogavel confirmada.
 Nao inclui arquivos do jogo. Os testes anteriores validaram CPU, memoria,
@@ -60,3 +60,12 @@ Os modos renderer e memory repetem os diagnosticos anteriores.
 
 Os logs sao reescritos a cada abertura. Guarde-os antes do proximo teste.
 Nao envie o dump nem os arquivos privados Prepared; somente os logs.
+
+CORRECAO 0.4.1
+A lista de imports agora registra os enderecos de GnmDriver e VideoOut antes
+da inicializacao da GPU. Na 0.4, Conferir servicos reportava essas funcoes
+como ausentes mesmo estando presentes no renderizador.
+Repita Conferir servicos e envie loader.log e errors.log. Ainda pode dar 20:
+audio, controle e outros servicos continuam pendentes. Para o mesmo executavel
+de Uncharted 3 do log recebido, a expectativa e cair de 124 para 59 ausentes.
+Isso nao comprova que as funcoes graficas funcionam durante gameplay.

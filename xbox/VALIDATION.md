@@ -124,3 +124,22 @@ The final USB-fallback code also passed the same full Windows pipeline:
 https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39541060331
 Code commit: `eb5e4cda7db0ca33a0f57bc6e6b94d22af73a7fc`.
 The signed 0.4.0.0 package delivered for testing is from this run.
+
+## Xbox native preparation 0.4 — tester report
+
+The supplied Uncharted 3 log confirmed USB E:, plaintext dump discovery,
+native preparation PASS (boot=33,391,052 bytes, content=28 bytes), and diagnostic
+exit 20 with 124/552 imports unresolved. The tester also reports exit 20 for
+games 1 and 2; only the game 3 log was supplied. No guest code was executed.
+
+## Graphics registration fix 0.4.1
+
+All 65 graphics NIDs in that report exist in GnmDriver/VideoOut registration
+tables. Previously these tables were populated by `bbgpu_init`, after the
+`--list-missing` return. Address registration is now independent of GPU/window
+initialization on UWP. Desktop RegisterLib retains initialization then registration.
+
+A Windows contract links the real renderer and CPU resolver and checks those
+65 imports without a CoreWindow, presenter or device. Unknown/data imports and
+unimplemented guest audio/input must remain unresolved. Windows build validation
+and the next Xbox diagnostic are pending at the time of this source change.

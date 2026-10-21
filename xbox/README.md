@@ -13,7 +13,8 @@ A adaptação usa componentes de Cosmo/gow3_xbox
 | 0.1 | CPU, memória sob demanda, aliases, proteções e swap | Log do testador: resultado 0; 8242 checagens, zero corrupção |
 | 0.2 | Vulkan/Dozen → imagem compartilhada D3D12 → CoreWindow | Log do testador: primeiro quadro apresentado em 1280×720; resultado 0 |
 | 0.3 | Renderizador ligado ao host; testes sintéticos de shaders e texturas | Log do testador: cópias, detile, amostragem e storage images sem erros; resultado 0 |
-| 0.4 | Preparação nativa do dump no Xbox, busca no USB e menu de teste de boot | Pendente |
+| 0.4 | Preparação nativa do dump no Xbox, busca no USB e menu de teste de boot | Log do testador: preparação de Uncharted 3 passou; imports pendentes |
+| 0.4.1 | Registro das funções gráficas antes do diagnóstico de imports | Pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -120,3 +121,20 @@ python xbox/scripts/verify-portable.py
 Os 44 testes Python, os testes C de I/O paginado e o carregador sintético
 passaram no Linux. Eles cobrem regressões de CPU/arquivos e não validam o
 renderizador UWP ou a execução do jogo.
+
+## Correção de imports 0.4.1
+
+O log de Uncharted 3 fornecido pelo testador confirmou leitura do USB e
+preparação nativa: boot=33.391.052 bytes, content=28 bytes. Reportou 124 de 552
+imports ausentes. Desses, 65 identificadores já constavam nas tabelas do
+renderizador, mas só eram registrados em `bbgpu_init`, depois do diagnóstico.
+
+O registro de endereços agora é separado da construção do presenter/dispositivo
+e do driver de vídeo. O runtime UWP registra esses endereços antes da consulta
+de imports; a inicialização real continua na tentativa de boot. O caminho
+desktop preserva a ordem anterior. Um contrato Windows verifica os 65 imports
+pelo resolver real, sem janela nem inicialização de GPU, e mantém áudio, controle
+e identificadores desconhecidos sem resolução. Isso não testa essas funções em execução.
+
+Repita **Conferir serviços** no Xbox. Para o mesmo executável de Uncharted 3,
+a expectativa é 59 imports pendentes; resultado 20 ainda é esperado.
