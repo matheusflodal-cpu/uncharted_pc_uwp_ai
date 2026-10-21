@@ -47,6 +47,10 @@ if($GraphicsProbe) {
         }
         New-Item -ItemType Directory (Join-Path $notices 'Boost') -Force | Out-Null
         Copy-Item (Join-Path $root '.local/deps/boost/licenses/*') (Join-Path $notices 'Boost') -Force
+        Copy-Item (Join-Path $root '../gpu/third_party/half/include/half.hpp') (Join-Path $notices 'half.hpp') -Force
+        foreach($license in @('fonts/LICENSE-DejaVu.txt','sirit/LICENSE.txt','sirit/externals/SPIRV-Headers/LICENSE')) {
+            Copy-Item (Join-Path $root "../gpu/third_party/$license") (Join-Path $notices ($license.Replace('/','-'))) -Force
+        }
         foreach($spec in @(@('imgui','LICENSE.txt'),@('magic_enum','LICENSE'),@('miniz','LICENSE'),@('xbyak','COPYRIGHT'))) {
             Copy-Item (Join-Path $root "../gpu/third_party/$($spec[0])/$($spec[1])") (Join-Path $notices "$($spec[0])-LICENSE.txt") -Force
         }

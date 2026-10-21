@@ -1,6 +1,6 @@
 # Credits and provenance
 
-This is an experimental **CPU-loader and memory diagnostic**, not a playable
+This is an experimental **UWP runtime and graphics diagnostic**, not a playable
 Uncharted Xbox release. No game binaries, assets or prepared game images are included.
 
 - SuperMedo / Mohammed Albarghouthi and contributors:
@@ -18,10 +18,12 @@ Uncharted Xbox release. No game binaries, assets or prepared game images are inc
 
 The original project builds on deadinside28's Bloodborne native runtime and
 the shadPS4 renderer. The original attribution and LICENSE remain in the root.
-The renderer is preserved in the source tree but **not linked into this diagnostic**.
+Version 0.1 tests CPU/memory only; 0.2 links the standalone presentation bridge;
+the experimental 0.3 integration links the Uncharted renderer for synthetic
+shader/texture tests. No game rendering or gameplay is claimed as validated.
 
-Mesa/Dozen is the proposed graphics bridge for a later milestone; this CPU-only
-package neither bundles it nor claims that it renders Uncharted on Xbox.
+Mesa/Dozen ships in the graphics builds. The tester confirmed the 0.2
+presentation probe on Xbox; this does not validate Uncharted rendering.
 
 New integration code is GPL-2.0-or-later, compatible with the inherited code.
 

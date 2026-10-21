@@ -2,6 +2,7 @@
 #include "present_bridge.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/texture_cache/blit_helper.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/texture_cache/tile_manager.h"
 #include "video_core/host_shaders/uwp_texture_sample_comp.h"
