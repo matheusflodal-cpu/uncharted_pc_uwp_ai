@@ -25,7 +25,7 @@ real ou desempenho em nenhum dos três Uncharted.
 
 Veja [LEIA-ME-0.4.txt](LEIA-ME-0.4.txt) para instalação e primeiro teste pelo celular.
 Coloque o dump plaintext completo em `USB:\dumps\Uncharted`, preservando
-`eboot.bin`, `sce_sys`, `sce_module`, `dvdroot_ps4` e os demais dados originais.
+`eboot.bin`, `sce_sys`, `sce_module`, `u1data`, `u2data`, `u3data` e os demais dados originais.
 Abra o app, escolha o jogo e **Conferir serviços**. A preparação roda no Xbox;
 não exige Python no PC. Traga `loader.log` e `errors.log` para identificar as
 próximas implementações necessárias. Resultado 20 informa imports ausentes.

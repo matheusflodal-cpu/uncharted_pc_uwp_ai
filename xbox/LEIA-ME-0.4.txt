@@ -22,7 +22,9 @@ A pasta deve conter diretamente:
   sce_sys/param.sfo
   sce_module/libc.prx
   sce_module/libSceFios2.prx
-  dvdroot_ps4/               (dados do jogo, com as subpastas originais)
+  u1data/                    (dados de Uncharted 1)
+  u2data/                    (dados de Uncharted 2, se presente)
+  u3data/                    (dados de Uncharted 3, se presente)
 Copie tambem os demais arquivos originais do dump. Nao basta copiar o executavel.
 O app apenas le o dump; prepara os arquivos de inicializacao em LocalState.
 A preparacao agora roda no Xbox. Nao precisa executar Python no computador.

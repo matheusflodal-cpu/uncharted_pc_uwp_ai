@@ -97,17 +97,24 @@ static bool is_dump(const std::string& path) {
     } catch(...) { return false; }
 }
 static std::string discover_dump(const std::string& root) {
-    std::vector<std::string> candidates={root+"\\Dump"};
+    std::vector<std::string> candidates={root+"\\Dump"}, volumes;
     try {
-        auto volumes=winrt::Windows::Storage::KnownFolders::RemovableDevices().GetFoldersAsync().get();
-        for(auto const& volume:volumes) {
+        auto devices=winrt::Windows::Storage::KnownFolders::RemovableDevices().GetFoldersAsync().get();
+        for(auto const& volume:devices) {
             const auto path=winrt::to_string(volume.Path());
             std::printf("USB volume: %s\n",path.c_str());
             if(path.empty()) continue;
-            for(const char* suffix:{"\\dumps\\Uncharted","\\Uncharted"}) candidates.push_back(path+suffix);
+            volumes.push_back(path);
         }
     } catch(const winrt::hresult_error& error) {
         std::fprintf(stderr,"USB enumeration: %s\n",winrt::to_string(error.message()).c_str());
+    }
+    // GoW3's Xbox host also tries E: when WinRT omits the first USB volume.
+    if(std::none_of(volumes.begin(),volumes.end(),[](const auto& path) { return _strnicmp(path.c_str(),"E:",2)==0; }))
+        volumes.push_back("E:");
+    for(auto path:volumes) {
+        while(!path.empty()&&(path.back()=='\\'||path.back()=='/')) path.pop_back();
+        for(const char* suffix:{"\\dumps\\Uncharted","\\Uncharted"}) candidates.push_back(path+suffix);
     }
     std::string selected;
     for(const auto& path:candidates) if(is_dump(path)) {
