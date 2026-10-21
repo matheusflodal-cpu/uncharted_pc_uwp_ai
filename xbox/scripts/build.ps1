@@ -17,7 +17,7 @@ python (Join-Path $PSScriptRoot 'fetch-deps.py') @dependencyArgs
 if($LASTEXITCODE) { throw 'Dependency preparation failed.' }
 $build=Join-Path $root '.local/build'
 $graphicsOption=if($GraphicsProbe) { 'ON' } else { 'OFF' }
-cmake -S $root -B $build -G Ninja -DUNCHARTED_GRAPHICS_PROBE=$graphicsOption -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake -S $root -B $build -G Ninja "-DUNCHARTED_GRAPHICS_PROBE=$graphicsOption" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=RelWithDebInfo
 if($LASTEXITCODE) { throw 'CMake configuration failed.' }
 cmake --build $build --parallel 4
 if($LASTEXITCODE) { throw 'UWP compilation failed.' }
