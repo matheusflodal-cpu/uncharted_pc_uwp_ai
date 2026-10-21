@@ -9,10 +9,14 @@
 #define UNPORTED(service) uintptr_t runtime_##service##_resolve(const char *nid) { (void)nid; return 0; }
 UNPORTED(audio)
 UNPORTED(ajm)
+#ifndef UNCHARTED_GUEST_INPUT
 UNPORTED(pad)
+#endif
 void runtime_audio_report(void) { puts("UWP diagnostic: audio backend not connected"); }
 void runtime_ajm_report(void) { puts("UWP diagnostic: decoder backend not connected"); }
+#ifndef UNCHARTED_GUEST_INPUT
 void runtime_pad_report(void) { puts("UWP diagnostic: guest controller backend not connected"); }
+#endif
 const RuntimeGuestCallback *runtime_guest_callbacks(size_t *count) { *count=0; return NULL; }
 #ifndef UNCHARTED_LINK_RENDERER
 void bbgpu_register_kernel(void) { puts("UWP diagnostic: GPU/event queues not connected"); }

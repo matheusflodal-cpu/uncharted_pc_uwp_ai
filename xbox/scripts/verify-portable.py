@@ -31,6 +31,11 @@ def main():
                          ("tests/test_file_mods.c", "file-mods")]:
         run(*common, source, "-o", OUT / name)
         run(OUT / name)
+    run(*common, "tests/test_uwp_pad.c", "-o", OUT / "pad-contract")
+    run(OUT / "pad-contract")
+    run(*common, "-DUNCHARTED_STANDALONE_MEMORY_CONTRACT", "tests/test_uwp_posix_memory.c",
+        "src/runtime_memory.c", "-o", OUT / "posix-memory-contract")
+    run(OUT / "posix-memory-contract")
     run(*common, "-D_GNU_SOURCE", "tests/test_content.c", "src/runtime_content.c", "-o", OUT / "content-test")
     cxx = os.environ.get("CXX") or shutil.which("c++")
     if not cxx:

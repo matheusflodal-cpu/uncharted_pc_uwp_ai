@@ -729,10 +729,62 @@ static ABI int32_t batch_map2(BatchEntry *entries, int count, int *processed, in
 static ABI int32_t batch_map(BatchEntry *entries, int count, int *processed) {
     return batch_map2(entries,count,processed,MAP_FIXED_FLAG);
 }
+/* POSIX libkernel entry points used by the bundled native C runtime. They share
+ * the guest VMA/flexible-memory backend, never the host CRT's address space.
+ * File-backed mmap is deliberately rejected until guest file mappings are implemented.
+ */
+static void *posix_map_failure(int error) {
+    *runtime_errno()=error;
+    return (void *)(uintptr_t)UINTPTR_MAX;
+}
+static ABI void *posix_mmap(void *address,uint64_t length,int prot,int flags,int fd,int64_t offset) {
+    enum { GUEST_SHARED=1, GUEST_PRIVATE=2, GUEST_ANON=0x1000 };
+    const int allowed=GUEST_SHARED|GUEST_PRIVATE|GUEST_ANON|MAP_FIXED_FLAG;
+    if(!length||length>UINT64_MAX-(PAGE-1)||(prot&~7)||(flags&~allowed)||
+       ((flags&(GUEST_SHARED|GUEST_PRIVATE))!=GUEST_PRIVATE && (flags&(GUEST_SHARED|GUEST_PRIVATE))!=GUEST_SHARED)||
+       offset<0||((uint64_t)offset&(PAGE-1))||
+       ((flags&MAP_FIXED_FLAG)&&((uintptr_t)address&(PAGE-1)))) return posix_map_failure(22);
+    if(!(flags&GUEST_ANON)) return posix_map_failure(78); /* ENOSYS: not a fake file mapping */
+    if(fd!=-1||offset) return posix_map_failure(22);
+    uint64_t size=align_up(length,PAGE);
+    if(size>FLEXIBLE_SIZE) return posix_map_failure(12);
+    void *result=address;
+    int32_t error=map_flexible(&result,size,prot,flags&MAP_FIXED_FLAG);
+    return error ? posix_map_failure((int)(uint32_t)error&0xffff) : result;
+}
+static ABI int32_t posix_munmap(void *address,uint64_t length) {
+    if(!length||length>UINT64_MAX-(PAGE-1)||((uintptr_t)address&(PAGE-1))) { *runtime_errno()=22; return -1; }
+    uint64_t size=align_up(length,PAGE);
+    if((uintptr_t)address>UINTPTR_MAX-size) { *runtime_errno()=22; return -1; }
+    int32_t error=direct_unmap(address,size);
+    if(error) { *runtime_errno()=(int)(uint32_t)error&0xffff; return -1; }
+    return 0;
+}
+static ABI int32_t posix_msync(void *address,uint64_t length,int flags) {
+    /* FreeBSD: MS_ASYNC=1, MS_INVALIDATE=2, MS_SYNC=4. Anonymous pages have no
+     * user file to flush; validate the entire range and accept synchronization.
+     */
+    uintptr_t start=(uintptr_t)address;
+    if((start&(PAGE-1))||!length||length>UINT64_MAX-(PAGE-1)||flags&~7||(flags&5)==5) {
+        *runtime_errno()=22; return -1;
+    }
+    uint64_t size=align_up(length,PAGE);
+    if(start>UINTPTR_MAX-size) { *runtime_errno()=22; return -1; }
+    read_lock();
+    int mapped_range=covered(start,start+size,0);
+    int anonymous=1;
+    if(mapped_range) for(size_t i=vma_index(start);i<vma_count&&vmas[i].start<start+size;++i)
+        if(vmas[i].kind!=KIND_FLEXIBLE) anonymous=0;
+    read_unlock();
+    if(!mapped_range||!anonymous) { *runtime_errno()=mapped_range ? 78 : 12; return -1; }
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    return 0;
+}
 static const RuntimeExport exports[]={
     {"sceKernelGetDirectMemorySize",direct_size}, {"sceKernelAllocateDirectMemory",direct_allocate},
     {"sceKernelMapDirectMemory",direct_map}, {"sceKernelMapNamedDirectMemory",direct_map_named},
-    {"sceKernelReleaseDirectMemory",direct_release}, {"sceKernelMunmap",direct_unmap}, {"munmap",direct_unmap},
+    {"sceKernelReleaseDirectMemory",direct_release}, {"sceKernelMunmap",direct_unmap}, {"munmap",posix_munmap},
+    {"mmap",posix_mmap}, {"msync",posix_msync},
     {"sceKernelMapFlexibleMemory",map_flexible}, {"sceKernelMapNamedFlexibleMemory",map_flexible_named},
     {"sceKernelReleaseFlexibleMemory",release_flexible}, {"sceKernelReserveVirtualRange",reserve_range},
     {"sceKernelMprotect",kernel_mprotect}, {"sceKernelQueryMemoryProtection",query_protection},

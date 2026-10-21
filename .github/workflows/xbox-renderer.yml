@@ -129,6 +129,10 @@ jobs:
           $env:BB_TEST_NATIVE_PREPARE="$env:GITHUB_WORKSPACE/xbox/.local/build/uncharted_prepare_contract.exe"
           python -m unittest test_native_prepare -v
           if($LASTEXITCODE) { throw 'Native preparation parity failed' }
+      - name: Verify guest pad ABI and behavior
+        run: |
+          & ./xbox/.local/build/uncharted_pad_contract.exe
+          if($LASTEXITCODE) { throw "Native pad contract failed: $LASTEXITCODE" }
       - name: Verify graphics imports without GPU initialization
         timeout-minutes: 2
         run: |
@@ -146,7 +150,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Uncharted-UWP-renderer-integration
-          path: xbox/.local/packages/UnchartedUwpProbe-0.4.1.0.zip
+          path: xbox/.local/packages/UnchartedUwpProbe-0.5.0.0.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

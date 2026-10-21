@@ -14,7 +14,8 @@ A adaptação usa componentes de Cosmo/gow3_xbox
 | 0.2 | Vulkan/Dozen → imagem compartilhada D3D12 → CoreWindow | Log do testador: primeiro quadro apresentado em 1280×720; resultado 0 |
 | 0.3 | Renderizador ligado ao host; testes sintéticos de shaders e texturas | Log do testador: cópias, detile, amostragem e storage images sem erros; resultado 0 |
 | 0.4 | Preparação nativa do dump no Xbox, busca no USB e menu de teste de boot | Log do testador: preparação de Uncharted 3 passou; imports pendentes |
-| 0.4.1 | Registro das funções gráficas antes do diagnóstico de imports | Pendente |
+| 0.4.1 | Registro das funções gráficas antes do diagnóstico de imports | Log do testador: pendências caíram de 124 para 59 |
+| 0.5 | Controle nativo, teste físico e memória POSIX anônima | Pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -32,8 +33,8 @@ não exige Python no PC. Traga `loader.log` e `errors.log` para identificar as
 próximas implementações necessárias. Resultado 20 informa imports ausentes.
 
 **Tentar iniciar** passa o executável preparado ao runtime com o renderizador
-ligado. Essa tentativa ainda não valida gameplay. Áudio e controle do jogo
-continuam sem implementação; os botões do menu do app usam a interface do Xbox.
+ligado. Essa tentativa ainda não valida gameplay. Áudio continua sem implementação. A 0.5 liga o serviço de controle nativo; seu
+funcionamento físico no Xbox e durante o jogo ainda precisa ser validado.
 
 O preparador compara byte por byte com os scripts originais em fixtures sintéticas:
 imports de todas as bibliotecas conhecidas, bindings nativos, TLS, relocações,
@@ -138,3 +139,26 @@ e identificadores desconhecidos sem resolução. Isso não testa essas funções
 
 Repita **Conferir serviços** no Xbox. Para o mesmo executável de Uncharted 3,
 a expectativa é 59 imports pendentes; resultado 20 ainda é esperado.
+
+## Controle nativo e memória 0.5
+
+Veja [LEIA-ME-0.5.txt](LEIA-ME-0.5.txt). O menu **Diagnósticos → Testar controle**
+chama o serviço de pad pela ABI guest durante 20 segundos. A/B/X/Y, ambos os
+analógicos e LT/RT precisam ser exercitados para PASS; Y solicita um pulso de
+vibração, cuja sensação física deve ser confirmada pelo testador.
+
+O backend usa Windows.Gaming.Input, mantém o controle selecionado enquanto ele
+permanecer conectado e acompanha substituições/reconexões. View vira o botão
+do touchpad; não há gestos, giroscópio ou acelerômetro. A barra RGB é apenas
+estado virtual. O código específico de câmera/callbacks do pad SDL do Uncharted
+ainda não foi integrado ao novo backend. Áudio e serviços online continuam pendentes.
+
+`mmap` anônimo agora usa memória flexível do guest, com zero inicial, limites
+e erros POSIX. `msync` valida a região anônima e `munmap` retorna errno em erros.
+Mapeamentos de arquivo e flags não suportadas retornam erro explícito.
+
+Os testes portáveis passaram: 187 checagens do pad, 32.786 checagens de memória
+POSIX e os 44 testes Python existentes. As entradas do teste de pad são simuladas;
+a integração com o controle físico precisa ser validada no Xbox. Para o mesmo
+executável U3 do log, esperam-se 50 pendências no modo imports. Isso não é
+evidência de gameplay. A próxima tentativa útil é **Tentar iniciar**, após o teste do controle.

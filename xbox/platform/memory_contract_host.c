@@ -34,7 +34,9 @@ int main(int argc,char **argv) {
     char *arguments[]={"uncharted-memory-contract","--memory-selftest"};
     const int result=uncharted_probe_main(2,arguments);
     printf("Memory contract result: %d\n",result); fflush(NULL);
-    return result;
+    if(result) return result;
+    extern int uncharted_posix_memory_contract(void);
+    return uncharted_posix_memory_contract();
 }
 
 #endif

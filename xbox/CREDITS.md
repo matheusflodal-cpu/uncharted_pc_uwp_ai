@@ -40,3 +40,11 @@ or shaders are included.
 The 0.4 native preparer adapts the GoW3 parser/linker at the same commit above.
 Its output magic and import canonicalization follow the original Uncharted
 Python scripts. No GoW3 game-specific XML or graphics patches are applied.
+
+## Native Xbox input 0.5
+
+The Windows.Gaming.Input apartment, reading and vibration approach adapts
+Cosmo/gow3_xbox `d0975c91d827045724230476c1527cd38afd72f4`,
+`xbox/platform/input.cpp`. Guest pad layouts, errors and export contracts follow
+Supermedo/uncharted_pc `src/runtime_pad.c`. Error constants were also checked
+against shadPS4's pad_errors.h. New selection, mapping and contract tests are GPL-2.0-or-later.

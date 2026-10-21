@@ -158,3 +158,24 @@ Code: `67456251d507f3bbb87c949c01ed9a3f29fced66`.
 The expected reduction to 59 missing imports is specific to the supplied
 Uncharted 3 executable; it remains to be confirmed on Xbox. This correction
 does not implement audio/input/network APIs or validate graphical guest calls.
+
+## Xbox confirmation of 0.4.1
+
+The next Uncharted 3 log confirmed native preparation PASS and
+`59 of 552 imports missing`, result 20. Graphics address registration appeared
+before GPU initialization; the 65 previously misreported graphics entries disappeared.
+No game execution occurred in this imports test.
+
+## Native pad and POSIX memory 0.5 — portable checks
+
+- 187 pad checks passed, including System V function-pointer calls, exact guest
+  structure layouts, all 14 button mappings, analog ranges/Y inversion, trigger
+  values, count/handle errors, disconnected output, hotplug/generation changes,
+  overlay neutralization and vibration routing. These use a mock host input source.
+- 32,786 anonymous-memory checks passed: guest mmap zero fill, rounding, msync,
+  munmap, reuse and errno for invalid/unsupported mappings. File mappings remain unsupported.
+- The existing paged I/O/file tests and 44 Python tests passed.
+
+The app now links a WinRT pad backend plus a 20-second physical input probe.
+Windows builds/contracts and Xbox hardware input/game boot are pending at this source change.
+Audio, network, motion/touch sensors and Uncharted-specific SDL pad callbacks remain unavailable.
