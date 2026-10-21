@@ -36,4 +36,4 @@ if($GraphicsProbe) {
     $manifest=Join-Path $layout 'AppxManifest.xml'
     (Get-Content $manifest -Raw).Replace('Version="0.1.0.0"','Version="0.2.0.0"').Replace('CPU and memory diagnostic;','Graphics bridge diagnostic;') | Set-Content $manifest -Encoding utf8NoBOM
 }
-Write-Output 'Built the diagnostic target. This is not a playable port.' 
+Write-Output 'Built the diagnostic target. This is not a playable port.'
