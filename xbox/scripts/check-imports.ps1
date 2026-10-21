@@ -26,4 +26,4 @@ $missing=@(foreach($binary in (Get-ChildItem -LiteralPath $Folder -File | Where-
     }
 })
 if($missing.Count) { $missing; throw 'Package imports unavailable UWP APIs' }
-Write-Output 'PASS: active package imports are UWP APIs, Store CRT, or packaged dependencies. Dozen desktop WSI DLLs remain delay-loaded.'
+Write-Output 'PASS: active package imports are UWP APIs, Store CRT, or packaged dependencies.'

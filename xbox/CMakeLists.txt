@@ -19,15 +19,23 @@ list(TRANSFORM cpu_sources PREPEND "${UNCHARTED_ROOT}/src/")
 list(TRANSFORM cpu_sources APPEND ".c")
 add_executable(uncharted_uwp WIN32 platform/main.cpp platform/runtime_compat.c
   platform/diagnostic_services.c ${cpu_sources})
-target_include_directories(uncharted_uwp PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_ROOT}/src"
+add_executable(uncharted_memory_contract platform/memory_contract_host.c platform/runtime_compat.c
+  platform/diagnostic_services.c ${cpu_sources})
+foreach(cpu_target uncharted_uwp uncharted_memory_contract)
+target_include_directories(${cpu_target} PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_ROOT}/src"
   platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
-target_compile_definitions(uncharted_uwp PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN
+target_compile_definitions(${cpu_target} PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN
   _CRT_SECURE_NO_WARNINGS _TIMESPEC_DEFINED _MODE_T_)
-target_compile_options(uncharted_uwp PRIVATE /W3
+target_compile_options(${cpu_target} PRIVATE /W3
   $<$<COMPILE_LANGUAGE:C>:/clang:-masm=att> $<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
-target_link_options(uncharted_uwp PRIVATE /APPCONTAINER /HIGHENTROPYVA:NO /STACK:16777216,16777216 /OPT:REF)
-target_link_directories(uncharted_uwp BEFORE PRIVATE "$ENV{VCToolsInstallDir}/lib/x64/store")
-target_link_libraries(uncharted_uwp PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
+target_link_options(${cpu_target} PRIVATE /HIGHENTROPYVA:NO /STACK:16777216,16777216 /OPT:REF)
+target_link_directories(${cpu_target} BEFORE PRIVATE "$ENV{VCToolsInstallDir}/lib/x64/store")
+target_link_libraries(${cpu_target} PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
+endforeach()
+target_link_options(uncharted_uwp PRIVATE /APPCONTAINER)
+target_link_libraries(uncharted_memory_contract PRIVATE psapi)
+add_custom_command(TARGET uncharted_memory_contract POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy "${UNCHARTED_DEPS}/libwinpthread/bin/libwinpthread-1.dll" "$<TARGET_FILE_DIR:uncharted_memory_contract>")
 set(layout "${CMAKE_BINARY_DIR}/layout")
 add_custom_command(TARGET uncharted_uwp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "${layout}/ThirdParty"

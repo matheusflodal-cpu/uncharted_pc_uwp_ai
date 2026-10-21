@@ -19,6 +19,14 @@ jobs:
       - name: Build UWP CPU and memory diagnostic
         shell: pwsh
         run: ./xbox/scripts/build.ps1
+      - name: Test UWP memory backend on desktop Windows
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $directory=Join-Path $env:RUNNER_TEMP 'uncharted-memory-contract'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          & ./xbox/.local/build/uncharted_memory_contract.exe $directory 2>&1 | Tee-Object xbox/.local/memory-contract.log
+          if($LASTEXITCODE) { throw "Memory contract failed: $LASTEXITCODE" }
       - name: Package diagnostic (no game files)
         shell: pwsh
         run: ./xbox/scripts/package.ps1
@@ -36,4 +44,5 @@ jobs:
           path: |
             xbox/.local/build/CMakeCache.txt
             xbox/.local/build/CMakeFiles/CMakeConfigureLog.yaml
+            xbox/.local/memory-contract.log
           if-no-files-found: ignore
