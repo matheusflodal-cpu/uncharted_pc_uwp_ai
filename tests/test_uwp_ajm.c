@@ -1,6 +1,7 @@
 /* Actual Uncharted AJM parser and decoders, without game data. */
 #include "src/runtime_ajm.c"
 #include "uwp_audio_fixture.h"
+#include "third_party/LibAtrac9/C/src/utility.h"
 #include <math.h>
 static unsigned checks;
 #define CHECK(x) do { ++checks; if(!(x)) { fprintf(stderr,"AJM FAIL line %d: %s\n",__LINE__,#x); exit(1); } } while(0)
@@ -47,5 +48,7 @@ int main(void) {
     malformed=(Chunk){header(IDENT_INPUT_RUN,0),0};memcpy(jobs+8,&malformed,8);
     CHECK(ajm_batch_start(ctx,jobs,16,0,NULL,&batch)==ERR_MALFORMED_BATCH);
     CHECK(ajm_finalize(ctx)==0);CHECK(ajm_finalize(other)==0);CHECK(ajm_finalize(ctx)==ERR_INVALID_CONTEXT);
+    CHECK(BitReverse32(0xffffffffu,0)==0);CHECK(BitReverse32(1,32)==0x80000000u);
+    CHECK(SignExtend32(0xff,8)==-1);CHECK(SignExtend32(0x7f,8)==127);CHECK(SignExtend32(-1,32)==-1);
     printf("AJM contract: PASS checks=%u; actual MP3 decoded, ATRAC9 initialized, batch ABI/errors\n",checks);
 }

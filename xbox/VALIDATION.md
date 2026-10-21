@@ -280,3 +280,15 @@ The Windows AJM contract uses a generated MP3 tone for actual decoding and
 a known stereo 48 kHz configuration for ATRAC9 initialization. It also checks
 batch parsing, malformed chunks and context ownership. Windows build/decoder
 checks and actual Xbox sound/boot remain pending until recorded below.
+
+The local AJM harness additionally passed 4648 checks using the system FFmpeg
+6.1.1 libraries: real MP3 PCM output, ATRAC9 initialization, batches and errors.
+ASan/UBSan initially exposed BitReverse32 shifting by 32 for a zero-width
+operation in the pinned LibAtrac9 utility. The UWP build substitutes a small
+MIT-licensed utility adaptation with defined zero-width reversal and unsigned
+bit arithmetic for sign extension; the original submodule pin is preserved.
+MP3 input is copied into an FFmpeg-owned zero-padded packet rather than
+assuming padding after guest memory. After those fixes the AJM sanitizer
+run passed with UBSAN_OPTIONS=halt_on_error=1 and no reported errors.
+The AudioOut sanitizer run passed its 100 checks as well. Leak detection
+was disabled for the local ASan runs under this execution environment.

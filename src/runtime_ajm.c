@@ -362,9 +362,14 @@ static uint32_t mp3_frame(Instance *in, const Mp3Frame *fr, const unsigned char 
     *samples_written=0;
     const unsigned char *h=*input;
     in->mp3_header=(uint32_t)h[0]<<24 | (uint32_t)h[1]<<16 | (uint32_t)h[2]<<8 | h[3];
-    in->mp3_packet->data=(uint8_t *)*input;
-    in->mp3_packet->size=(int)fr->frame_size;
-    int e=avcodec_send_packet(in->mp3,in->mp3_packet);
+    /* FFmpeg bitstream readers require zero padding beyond each packet.
+       Guest file slices need not have that padding, so own a padded packet. */
+    av_packet_unref(in->mp3_packet);
+    int e=av_new_packet(in->mp3_packet,(int)fr->frame_size);
+    if (e<0) { *internal=e; return RESULT_CODEC_ERROR|RESULT_FATAL; }
+    memcpy(in->mp3_packet->data,*input,fr->frame_size);
+    e=avcodec_send_packet(in->mp3,in->mp3_packet);
+    av_packet_unref(in->mp3_packet);
     *input+=fr->frame_size; *input_size-=fr->frame_size;
     in->mp3_channels=fr->num_channels; in->mp3_rate=fr->sample_rate; in->mp3_bitrate=fr->bitrate;
     in->mp3_frame_samples=fr->samples_per_channel;
@@ -709,5 +714,5 @@ static const RuntimeExport exports[]={
 };
 uintptr_t runtime_ajm_resolve(const char *name) { return RUNTIME_LOOKUP(exports,name); }
 void runtime_ajm_report(void) {
-    printf("Runtime: Ajm batches=%zu, jobs=%zu, ATRAC9 frames decoded=%zu\n",batches_run,jobs_run,frames_decoded);
+    printf("Runtime: Ajm batches=%zu, jobs=%zu, decoded audio frames=%zu\n",batches_run,jobs_run,frames_decoded);
 }

@@ -58,3 +58,7 @@ ABI, pacing, channel layout and volume behavior derive from Uncharted's
 MP3 decoding. LibAtrac9 is pinned by the existing git submodule and its MIT
 license ships under ThirdParty. MP3 uses the already pinned LGPL FFmpeg build.
 The tiny MP3 regression fixture is a generated sine tone, not game content.
+
+`xbox/platform/atrac9_utility.c` adapts the pinned MIT-licensed LibAtrac9 utility
+to define zero-width reversal and avoid signed-shift undefined behavior.
+The original submodule and its license remain unchanged.
