@@ -80,3 +80,7 @@ Cosmo/mesa_ai_slop_version dzn_pipeline.c at the same pinned commit
 The added sink reports native failures without changing driver validation or
 error handling. See xbox/scripts/patch-dozen-diagnostics.py and
 xbox/graphics/dzn_diagnostic_sink.h.
+
+The Dozen diagnostic header also provides a host-test-only shader-model
+limit switch (SM 6.0). It defaults off; the Xbox app never invokes it. The
+strict source patch applies the test limit to both NIR and DXIL model caps.

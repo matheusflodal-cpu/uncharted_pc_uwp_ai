@@ -11,6 +11,8 @@ def patch(source):
     if hashlib.sha256(source.encode()).hexdigest() != EXPECTED:
         raise ValueError('Dozen diagnostics requires the exact pinned dzn_pipeline.c source')
     edits = [
+        ('.shader_model_max = dzn_get_shader_model(pdev),',
+         '.shader_model_max = dzn_uwp_legacy_shader_model ? SHADER_MODEL_6_0 : dzn_get_shader_model(pdev),'),
         ('#include "dzn_private.h"', '#include "dzn_private.h"\n'+MARKER),
         ('   } else {\n      result = vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);',
          '   } else {\n      dzn_uwp_report("nir_to_dxil", (uint32_t)nir->info.stage, "conversion failed");\n      result = vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);'),
@@ -26,7 +28,7 @@ def patch(source):
     for old,new in edits:
         count=source.count(old)
         # Graphics and compute allocate the same way; instrument both allocations.
-        expected=2 if old.startswith('   if (!pipeline)') else 1
+        expected=2 if old.startswith('   if (!pipeline)') or old.startswith('.shader_model_max') else 1
         if count!=expected: raise ValueError(f'unexpected patch context count {count}, expected {expected}')
         source=source.replace(old,new)
     return source

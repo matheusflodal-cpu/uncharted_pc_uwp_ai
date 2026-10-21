@@ -586,3 +586,14 @@ fragment graphics pipeline, implicit integer sampling and FragCoord input;
 the negative control must reject before all lowered graphics variants run.
 Tests also include signed constant offsets and predefined border swizzles,
 including constant-zero/one channels. Border swizzle enters specialization.
+
+
+Desktop WARP compiled the original integer sample at ps_6_8 and accepted all
+80 lowered graphics variants; it did not reproduce the console rejection.
+The host contract now explicitly preloads the packaged DXIL/DXC and uses a
+new diagnostic-only setter to compile at SM 6.0. Both NIR and DXIL compiler
+model caps are changed together by this test switch. Its default is zero;
+the app never calls it and normal adapter model selection is preserved.
+This tests an older compiler target, not a claimed match for every Xbox
+capability. Validation remains enabled. The isolated compiler check runs
+before the full renderer build, so shader test failures return sooner.

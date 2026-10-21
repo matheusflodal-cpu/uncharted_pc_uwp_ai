@@ -28,6 +28,9 @@ int main(int argc,char** argv){
     Require(LoadLibraryA((dir+"/dxcompiler.dll").c_str())!=nullptr,"preload packaged DXC");
     HMODULE dll=LoadLibraryA((dir+"/vulkan_dzn.dll").c_str());Require(dll!=nullptr,"load packaged Dozen");
     auto set=reinterpret_cast<void(*)(void(*)(const char*))>(GetProcAddress(dll,"dznSetUwpDiagnosticCallback"));Require(set!=nullptr,"diagnostic export");set(Diagnostic);
+    auto legacy=reinterpret_cast<void(*)(int)>(GetProcAddress(dll,"dznSetUwpDiagnosticLegacyShaderModel"));
+    Require(legacy!=nullptr,"legacy shader-model test export");legacy(1);
+    std::puts("Integer driver compiler contract: forced SM 6.0 for this host test only");
     auto proc=reinterpret_cast<PFN_vkGetInstanceProcAddr>(GetProcAddress(dll,"vk_icdGetInstanceProcAddr"));Require(proc!=nullptr,"ICD entry");
     auto create=reinterpret_cast<PFN_vkCreateInstance>(proc(nullptr,"vkCreateInstance"));
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};app.apiVersion=VK_API_VERSION_1_2;

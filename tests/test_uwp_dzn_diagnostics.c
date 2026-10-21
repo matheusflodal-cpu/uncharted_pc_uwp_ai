@@ -17,6 +17,9 @@ static void *worker(void *p) {
     (void)p;for(unsigned i=0;i<100;++i)dzn_uwp_report("dxil_validation",5,"parallel message");return NULL;
 }
 int main(void) {
+    CHECK(dzn_uwp_legacy_shader_model==0);
+    dznSetUwpDiagnosticLegacyShaderModel(1);CHECK(dzn_uwp_legacy_shader_model==1);
+    dznSetUwpDiagnosticLegacyShaderModel(0);CHECK(dzn_uwp_legacy_shader_model==0);
     dzn_uwp_report("disabled",1,"ignored");CHECK(calls==0);
     dznSetUwpDiagnosticCallback(collect);
     dzn_uwp_report("d3d12_graphics_pipeline",UINT32_C(0x80070057),"CreatePipelineState failed");

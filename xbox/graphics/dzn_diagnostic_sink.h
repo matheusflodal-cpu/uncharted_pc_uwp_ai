@@ -8,6 +8,15 @@
 #include <stdio.h>
 typedef void (*DznUwpDiagnosticCallback)(const char *message);
 static DznUwpDiagnosticCallback dzn_uwp_sink;
+// Host compiler contract only. The app never calls this export; zero keeps
+// the adapter's real shader-model selection. Set once before device/workers.
+static int dzn_uwp_legacy_shader_model;
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+void dznSetUwpDiagnosticLegacyShaderModel(int enabled) {
+    dzn_uwp_legacy_shader_model=enabled!=0;
+}
 #ifdef _WIN32
 __declspec(dllexport)
 #endif

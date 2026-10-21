@@ -18,5 +18,6 @@ espelhamento, clamp e bordas predefinidas. Outros casos mantem a validacao
 original e registram os parametros para investigar. A aplicabilidade ao
 shader do jogo precisa deste teste; o dump nao esta disponivel no build.
 O cache e versionado novamente e inclui os estados usados na conversao.
-O mesmo driver de diagnostico da 0.6.4 continua incluido.
+O driver de diagnostico continua incluido, com um controle exclusivo do
+teste Windows. O aplicativo Xbox usa normalmente o modelo de shader da GPU.
 Nao precisa repetir os testes de som/botoes nem copiar o jogo novamente.
