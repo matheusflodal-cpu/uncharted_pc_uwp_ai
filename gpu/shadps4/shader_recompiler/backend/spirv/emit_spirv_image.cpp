@@ -144,6 +144,8 @@ static Id IntegerSample(EmitContext& ctx, u32 handle, Id coords, const IR::Value
     config.array=type==AmdGpu::ImageType::Color1DArray || type==AmdGpu::ImageType::Color2DArray;
     config.wrap={unsigned(sampler.clamp_x.Value()),unsigned(sampler.clamp_y.Value()),unsigned(sampler.clamp_z.Value())};
     config.border=unsigned(sampler.border_color_type.Value());
+    const auto swizzle=image.DstSelect();
+    config.swizzle={unsigned(swizzle.r),unsigned(swizzle.g),unsigned(swizzle.b),unsigned(swizzle.a)};
     const bool supported_type=type==AmdGpu::ImageType::Color1D || type==AmdGpu::ImageType::Color1DArray ||
         type==AmdGpu::ImageType::Color2D || type==AmdGpu::ImageType::Color2DArray || type==AmdGpu::ImageType::Color3D;
     const bool supported=supported_type && !image.IsCube() && image.NumViewLevels(desc.is_array)==1 &&

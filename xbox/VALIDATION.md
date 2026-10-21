@@ -574,6 +574,15 @@ Local numerical cases exercise the production coordinate template. Sirit
 contracts generate 80 signed/unsigned modules across dimensions/arrays/wrap
 modes and assert integer fetch replaces sampling. The Windows ICD contract
 first requires the old shader to reproduce a DXIL rejection, then requires
-all 80 lowered pipelines to compile through the exact packaged Dozen. This
+all 80 lowered fragment/graphics pipelines to compile through the exact packaged Dozen. This
 checks compiler acceptance, not GPU execution or rendered pixels. Windows
 and Xbox results remain pending until recorded below.
+
+
+The initial Windows compile at 5ae1a00 succeeded, including 6683 local
+emitter checks, but its compute-stage negative control did not reproduce
+the fragment-stage rejection. The driver contract now uses a real vertex /
+fragment graphics pipeline, implicit integer sampling and FragCoord input;
+the negative control must reject before all lowered graphics variants run.
+Tests also include signed constant offsets and predefined border swizzles,
+including constant-zero/one channels. Border swizzle enters specialization.

@@ -151,6 +151,7 @@ struct StageSpecialization {
                          spec.num_bindings = desc.NumBindings(*info);
 #ifdef UNCHARTED_UWP
                          spec.integer_view_levels=spec.is_integer?sharp.NumViewLevels(desc.is_array):0;
+                         if(spec.is_integer) spec.dst_select=sharp.DstSelect();
 #endif
                      });
         ForEachSharp(binding, fmasks, info->fmasks,

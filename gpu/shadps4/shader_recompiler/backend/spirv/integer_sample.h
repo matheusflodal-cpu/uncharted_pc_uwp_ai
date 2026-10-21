@@ -11,7 +11,16 @@ struct Config {
     bool array{};
     std::array<unsigned,3> wrap{}; // AMD clamp mode values, 0..7
     unsigned border{}; // transparent black, opaque black, white; custom excluded
+    std::array<unsigned,4> swizzle{4,5,6,7}; // AMD: 0/1 constants, 4..7 RGBA
 };
+
+constexpr std::array<uint32_t,4> Border(const Config& c) {
+    const uint32_t rgb=c.border==2?1:0,alpha=c.border==0?0:1;
+    const std::array<uint32_t,4> original{rgb,rgb,rgb,alpha};
+    std::array<uint32_t,4> result{};
+    for(unsigned j=0;j<4;++j) result[j]=c.swizzle[j]==1?1:c.swizzle[j]>=4?original[c.swizzle[j]-4]:0;
+    return result;
+}
 
 // Shared by the production shader and the host contract. B is either the
 // SPIR-V scalar emitter below or an evaluator used by the numerical tests.
@@ -79,9 +88,9 @@ inline Sirit::Id Emit(Sirit::Module& m,const Config& c,Sirit::Id image,
     const Id texel=m.OpImageFetch(result_type,image,position,spv::ImageOperandsMask::Lod,zero);
     // Construct border bits in the actual signed/unsigned result type. Bitcast
     // later preserves all 32-bit values, including values above float precision.
-    const Id z=m.Constant(u,0u),one=m.Constant(u,1u),uv4=m.TypeVector(u,4);
-    const Id rgb=c.border==2?one:z,alpha=c.border==0?z:one;
-    const Id color=m.OpBitcast(result_type,m.ConstantComposite(uv4,rgb,rgb,rgb,alpha));
+    const auto rgba=Border(c);
+    const Id color=m.OpBitcast(result_type,m.ConstantComposite(m.TypeVector(u,4),
+        m.Constant(u,rgba[0]),m.Constant(u,rgba[1]),m.Constant(u,rgba[2]),m.Constant(u,rgba[3])));
     const Id condition=m.OpCompositeConstruct(m.TypeVector(boolean,4),border,border,border,border);
     return m.OpSelect(result_type,condition,color,texel);
 }
