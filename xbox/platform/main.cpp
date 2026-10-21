@@ -79,6 +79,12 @@ static int load() {
 #endif
     std::printf("App memory: %llu / %llu MiB\n",uncharted_uwp_app_memory_usage()>>20,
                 uncharted_uwp_app_memory_limit()>>20);
+#ifdef UNCHARTED_LINK_RENDERER
+    _putenv_s("BB_GPU_LOG","info");
+    _putenv_s("BB_UPSCALER","off");
+    _putenv_s("BB_FRAME_GEN","off");
+    _putenv_s("BB_OBJECT_MOTION","0");
+#endif
     if(!native_smoke()) { std::puts("STOP: executable-memory smoke failed"); return 1; }
     _putenv_s("BB_GPU_USER_DIR",root.c_str());
     _putenv_s("BB_UWP_SWAP_FILE",(root+"\\uncharted-swap.bin").c_str());

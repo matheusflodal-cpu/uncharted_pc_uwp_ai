@@ -26,8 +26,7 @@ bool Swapchain::AcquireNextImage() {
     std::scoped_lock lock(Scheduler::submit_mutex);
     return bridge->Acquire();
 }
-bool Swapchain::Present() { return bridge->Present(vsync); }
-void Swapchain::UpdateVsync() { vsync=true; }
+bool Swapchain::Present() { return bridge->Present(true); }
 void Swapchain::SetHDR(bool enabled) {
     if(enabled) std::puts("UWP presenter: HDR unavailable; using SDR");
 }
