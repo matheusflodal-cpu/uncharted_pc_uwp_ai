@@ -63,4 +63,12 @@ option(UNCHARTED_COMPILE_RENDERER "Compile the experimental renderer library wit
 if(UNCHARTED_COMPILE_RENDERER)
   set(UNCHARTED_UWP ON)
   add_subdirectory("${UNCHARTED_ROOT}/gpu" "${CMAKE_BINARY_DIR}/gpu")
+  if(UNCHARTED_GRAPHICS_PROBE)
+    target_compile_definitions(uncharted_uwp PRIVATE UNCHARTED_LINK_RENDERER)
+    target_compile_features(uncharted_uwp PRIVATE cxx_std_23)
+    target_sources(uncharted_uwp PRIVATE graphics/texture_probe.cpp)
+    target_include_directories(uncharted_uwp PRIVATE "${UNCHARTED_ROOT}/gpu/shim"
+      "${CMAKE_BINARY_DIR}/gpu/include" "${UNCHARTED_ROOT}/gpu/third_party/gcn/include")
+    target_link_libraries(uncharted_uwp PRIVATE bbgpu)
+  endif()
 endif()

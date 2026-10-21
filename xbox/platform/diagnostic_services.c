@@ -14,10 +14,13 @@ void runtime_audio_report(void) { puts("UWP diagnostic: audio backend not connec
 void runtime_ajm_report(void) { puts("UWP diagnostic: decoder backend not connected"); }
 void runtime_pad_report(void) { puts("UWP diagnostic: guest controller backend not connected"); }
 const RuntimeGuestCallback *runtime_guest_callbacks(size_t *count) { *count=0; return NULL; }
+#ifndef UNCHARTED_LINK_RENDERER
 void bbgpu_register_kernel(void) { puts("UWP diagnostic: GPU/event queues not connected"); }
+#endif
 void bbnet_configure(const char *app0,const char *serial,const char *title,const char *version) {
     (void)app0; (void)serial; (void)title; (void)version;
 }
+#ifndef UNCHARTED_LINK_RENDERER
 int bbgpu_init(const BbGpuConfig *config) { (void)config; return -1; }
 uintptr_t bbgpu_resolve(const char *name) { (void)name; return 0; }
 int bbgpu_handle_fault(void *context,void *address) { (void)context; (void)address; return 0; }
@@ -31,4 +34,5 @@ int bbgpu_camera_yaw(float *yaw,double *age) { (void)yaw; (void)age; return 0; }
 int bbgpu_mouse_sample(float *dx,float *dy,uint32_t *buttons,int *wheel) {
     *dx=0; *dy=0; *buttons=0; *wheel=0; return 0;
 }
+#endif
 int vulkan_smoke(void) { fputs("STOP: this milestone contains no Vulkan renderer\n",stderr); return 21; }

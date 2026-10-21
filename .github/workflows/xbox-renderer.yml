@@ -9,8 +9,70 @@ on:
       - '.github/workflows/xbox-renderer.yml'
 permissions:
   contents: read
+env:
+  MESA_REPOSITORY: Cosmo/mesa_ai_slop_version
+  MESA_COMMIT: 82804960ac7919b24dbf27d1cec2b4d637573731
+  DXC_URL: https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2609/dxc_2026_09_29.zip
+  DXC_SHA256: ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1
 jobs:
+  dozen:
+    name: Dozen for UWP
+    # Visual Studio 2022: Mesa is built with MSVC 14.44, because MSVC 19.51 (Visual Studio 2026) miscompiles it.
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\dozen
+          key: dozen-uwp-${{ env.MESA_COMMIT }}-msvc14.44
+
+      - name: Checkout Mesa fork
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MESA_REPOSITORY }}
+          ref: ${{ env.MESA_COMMIT }}
+          path: mesa
+          fetch-depth: 1
+
+      # The options of the fork's own UWP build: release, no asserts, static CRT, desktop DLLs delay-loaded.
+      - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install --quiet meson==1.12.1 ninja==1.13.2 Mako==1.4.3 PyYAML==6.0.3 packaging==26.3
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not (Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Where-Object Name -like '14.44.*')) {
+            Start-Process -Wait -FilePath "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" -ArgumentList `
+              'modify', '--installPath', "`"$vs`"", '--add', 'Microsoft.VisualStudio.Component.VC.14.44.17.14.x86.x64', '--quiet', '--norestart', '--nocache'
+          }
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -DevCmdArguments '-arch=x64 -host_arch=x64 -vcvars_ver=14.44' -SkipAutomaticLocation | Out-Null
+          $delayLoad = "['/DELAYLOAD:user32.dll', '/DELAYLOAD:gdi32.dll', '/DELAYLOAD:shell32.dll', '/DELAYLOAD:version.dll', 'delayimp.lib']"
+          meson setup build mesa --backend=ninja -Dbuildtype=release -Dplatforms=windows -Dgallium-drivers= `
+            -Dvulkan-drivers=microsoft-experimental -Dllvm=disabled -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dopengl=false `
+            -Dgles1=disabled -Dgles2=disabled -Dspirv-tools=disabled -Dmicrosoft-clc=disabled -Dbuild-tests=false -Dvideo-codecs= `
+            -Dzlib=disabled -Dzstd=disabled -Dexpat=disabled -Db_ndebug=true -Db_vscrt=mt -Dmin-windows-version=10 `
+            "-Dc_link_args=$delayLoad" "-Dcpp_link_args=$delayLoad"
+          meson compile -C build
+          $out = "$env:RUNNER_TEMP\dozen"
+          New-Item -ItemType Directory $out -Force | Out-Null
+          Copy-Item build\src\microsoft\vulkan\vulkan_dzn.dll, mesa\licenses\MIT $out
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dozen-uwp
+          path: ${{ runner.temp }}\dozen\
+          if-no-files-found: error
+
   renderer:
+    needs: dozen
     runs-on: windows-2025-vs2026
     timeout-minutes: 120
     defaults:
@@ -22,13 +84,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: actions/download-artifact@v4
+        with:
+          name: dozen-uwp
+          path: ${{ runner.temp }}\dozen
+      - name: Download pinned DXC
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'dxc.zip'
+          Invoke-WebRequest $env:DXC_URL -OutFile $zip
+          if((Get-FileHash $zip -Algorithm SHA256).Hash -ne $env:DXC_SHA256) { throw 'DXC SHA-256 mismatch' }
+          Expand-Archive $zip (Join-Path $env:RUNNER_TEMP 'dxc')
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install build tools
         run: python -m pip install ninja==1.11.1.4 zstandard==0.23.0
       - name: Cache pinned dependencies
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: xbox/.local/deps
           key: renderer-vs2026-v1-${{ hashFiles('xbox/scripts/fetch-deps.py', 'xbox/scripts/graphics-dependencies.json', 'xbox/scripts/build-deps.ps1', 'xbox/scripts/boost-headers.py') }}
@@ -42,8 +114,29 @@ jobs:
               'modify', '--installPath', "`"$vs`"", '--add', 'Microsoft.VisualStudio.Component.VC.Llvm.Clang', '--quiet', '--norestart', '--nocache'
           }
           & "$vs\VC\Tools\Llvm\x64\bin\clang-cl.exe" --version
-      - name: Compile Uncharted renderer library
-        run: ./xbox/scripts/build.ps1 -CompileRenderer
+      - name: Prepare renderer dependencies
+        run: ./xbox/scripts/build-deps.ps1
+      - name: Save built dependencies
+        uses: actions/cache/save@v4
+        with:
+          path: xbox/.local/deps
+          key: renderer-vs2026-v1-${{ hashFiles('xbox/scripts/fetch-deps.py', 'xbox/scripts/graphics-dependencies.json', 'xbox/scripts/build-deps.ps1', 'xbox/scripts/boost-headers.py') }}
+      - name: Compile and link Uncharted renderer
+        run: ./xbox/scripts/build.ps1 -CompileRenderer -GraphicsProbe -DozenDirectory "$env:RUNNER_TEMP\dozen" -DxcDirectory "$env:RUNNER_TEMP\dxc"
+      - name: Verify memory contracts
+        timeout-minutes: 3
+        run: |
+          $directory=Join-Path $env:RUNNER_TEMP 'uncharted-memory-contract'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          & ./xbox/.local/build/uncharted_memory_contract.exe $directory 2>&1 | Tee-Object xbox/.local/memory-contract.log
+          if($LASTEXITCODE) { throw "Memory contract failed: $LASTEXITCODE" }
+      - name: Verify imports and sign package
+        run: ./xbox/scripts/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Uncharted-UWP-renderer-integration
+          path: xbox/.local/packages/UnchartedUwpProbe-0.3.0.0.zip
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:

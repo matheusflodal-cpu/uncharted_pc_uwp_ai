@@ -70,7 +70,9 @@ static int load() {
     if(_wfreopen_s(&stream,(std::wstring(local)+L"\\loader.log").c_str(),L"w",stdout)) return 1;
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
-#ifdef UNCHARTED_GRAPHICS_PROBE
+#ifdef UNCHARTED_LINK_RENDERER
+    std::puts("Uncharted 0.3.6 UWP renderer integration — synthetic shader/texture tests; game execution remains experimental");
+#elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
     std::puts("Uncharted 0.3.6 UWP CPU/memory diagnostic — gameplay is not linked");
@@ -84,6 +86,14 @@ static int load() {
     std::string mode=line(settings),dump=line(settings),game=line(settings);
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_GRAPHICS_PROBE
+#ifdef UNCHARTED_LINK_RENDERER
+    if(mode.empty()||mode=="renderer") {
+        std::puts("Renderer texture/shader self-test starting");
+        int result=UnchartedUwp::TextureProbe();
+        std::printf("Renderer texture/shader self-test: %s\n",result ? "FAIL" : "PASS");
+        return result ? result : UnchartedUwp::GraphicsProbe();
+    }
+#endif
     if(mode.empty()||mode=="graphics") return UnchartedUwp::GraphicsProbe();
 #endif
     if(mode.empty()||mode=="memory") {
@@ -99,8 +109,14 @@ static int load() {
     CreateDirectoryFromAppW(winrt::to_hstring(user).c_str(),nullptr);
     std::vector<std::string> values={"uncharted-uwp",prepared+"\\boot-linked.bin","--cpu-only",
         "--app0",dump,"--user",user,"--content-profile",prepared+"\\content.bin","--timeout","0"};
+#ifdef UNCHARTED_LINK_RENDERER
+    if(mode=="boot") {
+        values.erase(std::find(values.begin(),values.end(),"--cpu-only"));
+        std::puts("EXPERIMENTAL guest boot: renderer linked; audio, controller and online guest APIs remain unavailable");
+    }
+#endif
     if(mode=="imports") values.push_back("--list-missing");
-    std::puts("CPU diagnostic only. Unported guest APIs stop with a named missing import.");
+    std::puts("Unported guest APIs stop with a named missing import.");
     std::vector<char*> args; for(auto &v:values) args.push_back(v.data());
     return uncharted_probe_main(int(args.size()),args.data());
 }

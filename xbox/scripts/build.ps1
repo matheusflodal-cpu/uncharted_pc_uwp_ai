@@ -39,7 +39,20 @@ if($GraphicsProbe) {
     }
     Copy-Item (Join-Path $DxcDirectory 'LICENSE*') (Join-Path $layout 'ThirdParty') -Force
     Copy-Item (Join-Path $root '.local/deps/vulkan-headers/LICENSE*') (Join-Path $layout 'ThirdParty') -Force
+    if($CompileRenderer) {
+        $notices=Join-Path $layout 'ThirdParty'
+        $sources=Get-Content (Join-Path $PSScriptRoot 'graphics-dependencies.json') -Raw | ConvertFrom-Json -AsHashtable
+        foreach($name in $sources.Keys) {
+            Copy-Item (Join-Path $root ".local/deps/$name/$($sources[$name][2])") (Join-Path $notices "$name-LICENSE.txt") -Force
+        }
+        New-Item -ItemType Directory (Join-Path $notices 'Boost') -Force | Out-Null
+        Copy-Item (Join-Path $root '.local/deps/boost/licenses/*') (Join-Path $notices 'Boost') -Force
+        foreach($spec in @(@('imgui','LICENSE.txt'),@('magic_enum','LICENSE'),@('miniz','LICENSE'),@('xbyak','COPYRIGHT'))) {
+            Copy-Item (Join-Path $root "../gpu/third_party/$($spec[0])/$($spec[1])") (Join-Path $notices "$($spec[0])-LICENSE.txt") -Force
+        }
+    }
     $manifest=Join-Path $layout 'AppxManifest.xml'
-    (Get-Content $manifest -Raw).Replace('Version="0.1.0.0"','Version="0.2.0.0"').Replace('CPU and memory diagnostic;','Graphics bridge diagnostic;') | Set-Content $manifest -Encoding utf8NoBOM
+    $packageVersion=if($CompileRenderer) { '0.3.0.0' } else { '0.2.0.0' }
+    (Get-Content $manifest -Raw).Replace('Version="0.1.0.0"',"Version=`"$packageVersion`"").Replace('CPU and memory diagnostic;','Graphics bridge diagnostic;') | Set-Content $manifest -Encoding utf8NoBOM
 }
 Write-Output 'Built the diagnostic target. This is not a playable port.'
