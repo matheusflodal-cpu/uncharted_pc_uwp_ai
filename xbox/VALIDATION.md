@@ -238,5 +238,13 @@ WSI, missing dynamic-rendering functions, valid Vulkan 1.2 KHR fallback, core
 loads to return without initializing backend state or calling any GPU function.
 Local validation passed: 31 overlay loader checks, 187 pad checks, 32786
 POSIX memory checks, the existing C I/O checks, and 44 Python tests.
-Windows compilation/package checks and Xbox boot confirmation are pending
-for this revision until recorded below.
+Windows CI passed for code 34ce4407fce52e1579f1a914d29750c354a7d253:
+https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39635271859
+
+- Full renderer and UWP application compiled and linked.
+- Actual ImGui backend loader regression: 31 checks, no GPU calls.
+- Native pad: 187 checks; POSIX memory: 32786 checks.
+- Native preparation: six parity tests; headless graphics import contract passed.
+- Swap: 8242 checks, zero corruption.
+- UWP import allowlist passed; MakeAppx and signing succeeded for 0.5.1.0.
+- Xbox boot confirmation remains pending; no gameplay claim is made.
