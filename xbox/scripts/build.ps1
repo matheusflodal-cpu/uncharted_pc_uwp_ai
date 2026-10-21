@@ -25,7 +25,12 @@ $rendererOption=if($CompileRenderer) { 'ON' } else { 'OFF' }
 $graphicsOption=if($GraphicsProbe) { 'ON' } else { 'OFF' }
 cmake -S $root -B $build -G Ninja "-DUNCHARTED_GRAPHICS_PROBE=$graphicsOption" "-DUNCHARTED_COMPILE_RENDERER=$rendererOption" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=RelWithDebInfo
 if($LASTEXITCODE) { throw 'CMake configuration failed.' }
-cmake --build $build --parallel 4
+if($CompileRenderer) {
+    # Collect independent compilation errors in one run; Ninja still returns failure.
+    cmake --build $build --parallel 4 -- -k 0
+} else {
+    cmake --build $build --parallel 4
+}
 if($LASTEXITCODE) { throw 'UWP compilation failed.' }
 if($GraphicsProbe) {
     $layout=Join-Path $build 'layout'
