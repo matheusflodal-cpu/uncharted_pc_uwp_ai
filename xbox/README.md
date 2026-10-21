@@ -140,3 +140,23 @@ Install through Xbox Device Portal like version 0.1, including the VCLibs
 framework if it is not already installed. No PC is needed to run the test.
 The package uses the same diagnostic app identity; keep your previous logs
 before installing. Compiling and signing alone do not validate the Xbox GPU.
+
+## Renderer integration (0.3, experimental)
+
+`build.ps1 -CompileRenderer -GraphicsProbe -DozenDirectory <Dozen folder>
+-DxcDirectory <DXC folder>` builds and links the native Uncharted renderer.
+The `Xbox renderer integration` workflow prepares its dependencies, verifies
+imports and signs the package. See its Actions result for actual build status.
+
+With no run.txt, or with `renderer` or `graphics` on line 1, it tests GPU texture
+copies (including BC1/BC3), padded rows, layers/mips, PS4 1D detiling, sampling,
+and storage-image writes against CPU reference data. A successful test then
+presents the blue frame. Send both loader.log and errors.log; exit 0 without
+`Renderer texture/shader self-test: PASS` is not proof of this milestone.
+
+This build is still a diagnostic. It does not establish that Uncharted starts
+or runs. The optional prepared-dump `boot` mode links the renderer; audio,
+controller and online guest APIs remain unavailable. Real guest shaders and
+playability remain unvalidated. Native resolution only; temporal upscalers and
+frame generation are disabled. The earlier Xbox 0.2 log validated presentation
+but not shader execution or game textures.

@@ -93,7 +93,7 @@ static int load() {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_GRAPHICS_PROBE
 #ifdef UNCHARTED_LINK_RENDERER
-    if(mode.empty()||mode=="renderer") {
+    if(mode.empty()||mode=="renderer"||mode=="graphics") {
         std::puts("Renderer texture/shader self-test starting");
         int result=UnchartedUwp::TextureProbe();
         std::printf("Renderer texture/shader self-test: %s\n",result ? "FAIL" : "PASS");
