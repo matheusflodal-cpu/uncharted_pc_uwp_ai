@@ -33,18 +33,59 @@ def patch(source):
         source=source.replace(old,new)
     return source
 
+COMMAND_EXPECTED='5c53dfc76bebf8b216008114052cda6404edfc6c6026a885473f440e65edf137'
+DEVICE_REPORT = r"""
+#ifdef _WIN32
+__declspec(dllexport) void dznReportUwpDeviceStatus(VkDevice handle) {
+   VK_FROM_HANDLE(dzn_device, device, handle);
+   dzn_uwp_report("device_removed_reason", (uint32_t)ID3D12Device_GetDeviceRemovedReason(device->dev), "explicit device status");
+}
+#endif
+"""
+
+def patch_commands(source):
+    if hashlib.sha256(source.encode()).hexdigest()!=COMMAND_EXPECTED:
+        raise ValueError('Dozen diagnostics requires the exact pinned dzn_cmd_buffer.c')
+    source=source.replace('#include "dzn_private.h"','#include "dzn_private.h"\n#include "dzn_uwp_map_guard.h"',1)
+    # Only the two known transfer commands are changed. Keep their original
+    # successful mapping, copy, unmap and command-list recording paths intact.
+    for function,next_function,decl,cast in [
+        ('dzn_CmdFillBuffer(', 'dzn_CmdUpdateBuffer(', 'uint32_t *cpu_ptr;', '(void **)&cpu_ptr'),
+        ('dzn_CmdUpdateBuffer(', 'dzn_CmdClearAttachments(', 'void *cpu_ptr;', '&cpu_ptr'),
+    ]:
+        start=source.index(function);end=source.index(next_function,start)
+        body=source[start:end]
+        old=decl+'\n   ID3D12Resource_Map(src_res, 0, NULL, '+cast+');'
+        new=decl.replace(';',' = NULL;')+r"""
+   HRESULT map_status = (HRESULT)dznUwpDiagnosticMapFailure();
+   if (SUCCEEDED(map_status))
+      map_status = ID3D12Resource_Map(src_res, 0, NULL, """+cast+r""");
+   if (FAILED(map_status) || !cpu_ptr) {
+      struct dzn_device *device = container_of(cmdbuf->vk.base.device, struct dzn_device, vk);
+      HRESULT removed = ID3D12Device_GetDeviceRemovedReason(device->dev);
+      VkResult failure = (VkResult)dzn_uwp_check_map((int32_t)map_status, cpu_ptr, (int32_t)removed);
+      vk_command_buffer_set_error(&cmdbuf->vk, failure);
+      return;
+   }"""
+        if body.count(old)!=1:raise ValueError('unexpected command mapping context')
+        source=source[:start]+body.replace(old,new,1)+source[end:]
+    return source
+
 def main():
-    root=Path(sys.argv[1]);path=root/'src/microsoft/vulkan/dzn_pipeline.c'
-    original=path.read_text(encoding='utf-8')
-    result=patch(original)
+    root=Path(sys.argv[1]);directory=root/'src/microsoft/vulkan'
+    paths=[directory/'dzn_pipeline.c',directory/'dzn_cmd_buffer.c']
+    originals=[p.read_text(encoding='utf-8') for p in paths]
+    results=[patch(originals[0])+DEVICE_REPORT,patch_commands(originals[1])]
     if len(sys.argv)>2 and sys.argv[2]=='--check':
-        for invalid in [original+'\n', result, original.replace('vk_zalloc2','vk_zalloc3')]:
-            try:patch(invalid)
-            except ValueError:pass
-            else:raise AssertionError('changed or already patched source was accepted')
-        print('Dozen patch contract: PASS; exact pin, contexts and rejection of changed/reapplied source')
+        for original,result,apply in zip(originals,results,[patch,patch_commands]):
+            for invalid in [original+'\n',result,original.replace('dzn_private.h','wrong_private.h')]:
+                try:apply(invalid)
+                except ValueError:pass
+                else:raise AssertionError('changed or already patched source was accepted')
+        print('Dozen patch contract: PASS; both exact pins, command guard and rejection of changed/reapplied source')
         return
-    path.write_text(result,encoding='utf-8',newline='\n')
-    (path.parent/'dzn_uwp_diagnostics.h').write_text(HEADER.read_text(),encoding='utf-8',newline='\n')
-    print('Applied diagnostic callback to pinned Dozen; original failure handling preserved')
+    for path,result in zip(paths,results):path.write_text(result,encoding='utf-8',newline='\n')
+    for name,dest in [('dzn_diagnostic_sink.h','dzn_uwp_diagnostics.h'),('dzn_map_guard.h','dzn_uwp_map_guard.h')]:
+        (directory/dest).write_text((HEADER.parent/name).read_text(),encoding='utf-8',newline='\n')
+    print('Applied pipeline/device diagnostics and checked transfer maps to pinned Dozen')
 if __name__=='__main__':main()

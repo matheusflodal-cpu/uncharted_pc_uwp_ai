@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.5)
+## Teste atual (0.6.6)
 
-Veja [LEIA-ME-0.6.5.txt](LEIA-ME-0.6.5.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.6.txt](LEIA-ME-0.6.6.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -237,3 +237,25 @@ nao suportados, cubemaps e borda customizada mantem o caminho validado
 anterior e registram os parametros. A aplicabilidade ao shader real e o
 boot do jogo ainda dependem de teste Xbox. O cache de shaders/pipelines
 foi versionado novamente e os estados embutidos entram na especializacao.
+
+
+## Logos confirmadas e teste 0.6.6
+
+Na 0.6.5 o testador confirmou as logos do jogo no Xbox Series S. A conversao
+do shader 0x81a0a982 foi aplicada e o runtime passou da rejeicao DXIL.
+O ultimo snapshot registra 741 flip requests e 743 chamadas de apresentacao
+retornadas; nao equivalem a 743 imagens distintas. Menu/gameplay pendentes.
+Depois houve VK_ERROR_DEVICE_LOST e escrita nula em vulkan_dzn.dll+0x4bca.
+A instrucao e um preenchimento por rep stos depois de Map sem verificar o
+HRESULT, consistente com o CmdFillBuffer do mesmo binario.
+
+A 0.6.6 aplica barreiras conservadoras nos limites de renderizacao, baseadas
+no GoW3, como teste da hipotese de sincronizacao. Verifica Map em Fill/Update,
+preserva o erro de gravacao Vulkan e registra o motivo nativo da perda do
+dispositivo. A ponte encerra o processo na perda confirmada, evitando
+unwind de recursos concorrente com o guest. Isto nao prova corrigir a
+perda original; a protecao da escrita nula e uma correcao separada.
+
+O modo padrao e conservative. Para comparacao, LocalState/gpu-sync.txt pode
+conter normal ou conservative. Nao ha alteracao de shaders nesta etapa; a
+conversao inteira da 0.6.5 permanece. O modo pode reduzir desempenho.

@@ -34,6 +34,10 @@ target_compile_options(uncharted_prepare_contract PRIVATE /W3 /EHsc)
 
 add_executable(uncharted_memory_contract platform/memory_contract_host.c platform/runtime_compat.c
   platform/diagnostic_services.c "${UNCHARTED_ROOT}/tests/test_uwp_posix_memory.c" ${cpu_sources})
+add_executable(uncharted_dzn_map_contract "${UNCHARTED_ROOT}/tests/test_uwp_dzn_map.c")
+target_include_directories(uncharted_dzn_map_contract PRIVATE "${UNCHARTED_ROOT}")
+target_compile_definitions(uncharted_dzn_map_contract PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_link_libraries(uncharted_dzn_map_contract PRIVATE WindowsApp)
 add_executable(uncharted_dzn_diagnostic_contract "${UNCHARTED_ROOT}/tests/test_uwp_dzn_diagnostics.c")
 target_include_directories(uncharted_dzn_diagnostic_contract PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_DEPS}/winpthreads/include")
 target_compile_definitions(uncharted_dzn_diagnostic_contract PRIVATE _TIMESPEC_DEFINED _MODE_T_ _CRT_SECURE_NO_WARNINGS)

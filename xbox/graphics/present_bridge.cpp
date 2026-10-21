@@ -5,6 +5,7 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 #include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #include <array>
 #include <cstring>
@@ -49,6 +50,15 @@ void InitializeDriver() {
     if (!proc) throw std::runtime_error("Dozen ICD entry point missing");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(proc);
 }
+void ReportDeviceStatus(vk::Device device) {
+    HMODULE driver=LoadPackagedLibrary(L"vulkan_dzn.dll",0);
+    using Report=void (*)(VkDevice);
+    auto report=driver?reinterpret_cast<Report>(GetProcAddress(driver,"dznReportUwpDeviceStatus")):nullptr;
+    if(report) report(static_cast<VkDevice>(device));
+    else std::fprintf(stderr,"Dozen device status unavailable\n");
+    std::fflush(stderr);
+}
+
 struct Presenter::Impl {
     vk::Device device;
     vk::Queue queue;
@@ -71,7 +81,13 @@ struct Presenter::Impl {
     UINT64 tick=0;
     bool first=true;
     void WaitNative() {
-        if (fence->GetCompletedValue() >= tick) return;
+        const auto completed=fence->GetCompletedValue();
+        if(completed==UINT64_MAX) {
+            std::fprintf(stderr,"Native presentation fence: device removed HRESULT=0x%08lx\n",
+                static_cast<unsigned long>(native->GetDeviceRemovedReason()));
+            ReportDeviceStatus(device);std::fflush(stdout);std::fflush(stderr);std::_Exit(5);
+        }
+        if(completed>=tick) return;
         Check(fence->SetEventOnCompletion(tick,event),"Native fence event");
         if (WaitForSingleObject(event,10000)!=WAIT_OBJECT_0) throw std::runtime_error("Native presentation timed out");
     }
@@ -84,7 +100,16 @@ struct Presenter::Impl {
             .signalSemaphoreCount=static_cast<u32>(signals.size()),.pSignalSemaphores=signals.data(),
         };
         Check(queue.submit(submit,*vk_fence),"Submit presentation bridge");
-        Check(device.waitForFences(*vk_fence,true,10'000'000'000ULL),"Wait presentation bridge");
+        const auto waited=device.waitForFences(*vk_fence,true,10'000'000'000ULL);
+        if(waited==vk::Result::eErrorDeviceLost) {
+            std::fprintf(stderr,"Wait presentation bridge: device lost; native HRESULT=0x%08lx\n",
+                static_cast<unsigned long>(native->GetDeviceRemovedReason()));
+            ReportDeviceStatus(device);
+            // The graphics device is unusable. Preserve the first error and
+            // avoid unwinding/freeing resources while guest workers still run.
+            std::fflush(stdout);std::fflush(stderr);std::_Exit(5);
+        }
+        Check(waited,"Wait presentation bridge");
     }
     ~Impl() {
         if(native_queue && fence) {

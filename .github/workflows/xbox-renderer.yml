@@ -38,13 +38,14 @@ jobs:
           sparse-checkout: |
             xbox/scripts/patch-dozen-diagnostics.py
             xbox/graphics/dzn_diagnostic_sink.h
+            xbox/graphics/dzn_map_guard.h
           sparse-checkout-cone-mode: false
       - name: Cache
         id: cache
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}\dozen
-          key: dozen-uwp-${{ env.MESA_COMMIT }}-msvc14.44-diagnostics-${{ hashFiles('xbox/scripts/patch-dozen-diagnostics.py', 'xbox/graphics/dzn_diagnostic_sink.h') }}
+          key: dozen-uwp-${{ env.MESA_COMMIT }}-msvc14.44-diagnostics-${{ hashFiles('xbox/scripts/patch-dozen-diagnostics.py', 'xbox/graphics/dzn_diagnostic_sink.h', 'xbox/graphics/dzn_map_guard.h') }}
 
       - name: Checkout Mesa fork
         if: steps.cache.outputs.cache-hit != 'true'
@@ -148,6 +149,10 @@ jobs:
         run: |
           & ./xbox/.local/build/uncharted_integer_sample_contract.exe
           if($LASTEXITCODE) { throw 'Integer sample emitter contract failed.' }
+      - name: Verify failed resource map guard
+        run: |
+          & ./xbox/.local/build/uncharted_dzn_map_contract.exe
+          if($LASTEXITCODE) { throw 'Map failure guard contract failed.' }
       - name: Verify native driver diagnostic sink
         run: |
           & ./xbox/.local/build/uncharted_dzn_diagnostic_contract.exe
@@ -197,7 +202,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Uncharted-UWP-renderer-integration
-          path: xbox/.local/packages/UnchartedUwpProbe-0.6.5.0.zip
+          path: xbox/.local/packages/UnchartedUwpProbe-0.6.6.0.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

@@ -701,6 +701,8 @@ public:
 
     /// bbport: prints every scheduler's timeline and the last queue submissions (GPU stall).
     static void ReportStall();
+    static bool FullBarriers();
+    static void RecordFullBarrier(vk::CommandBuffer cmd);
 
     /// Attempts to execute operations whose tick the GPU has caught up with.
     void PopPendingOperations();

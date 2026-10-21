@@ -12,10 +12,11 @@
 using Shader::Backend::SPIRV::IntegerSampling::Config;
 std::vector<uint32_t> GenerateFragment(Config,bool,bool);
 std::vector<uint32_t> GenerateVertex();
-static unsigned validation_failures;
+static unsigned validation_failures,map_failures;
 static void Diagnostic(const char* text){
     std::fprintf(stderr,"%s\n",text);
     if(std::strstr(text,"phase=dxil_validation"))++validation_failures;
+    if(std::strstr(text,"phase=command_resource_map"))++map_failures;
 }
 static void Require(bool value,const char* message){if(!value){std::fprintf(stderr,"Integer driver FAIL: %s\n",message);std::exit(1);}}
 int main(int argc,char** argv){
@@ -52,6 +53,39 @@ int main(int argc,char** argv){
 #define DEVICE_FN(name) auto name=reinterpret_cast<PFN_##name>(vkGetDeviceProcAddr(device,#name));Require(name!=nullptr,#name)
     DEVICE_FN(vkCreateShaderModule);DEVICE_FN(vkDestroyShaderModule);DEVICE_FN(vkCreateDescriptorSetLayout);DEVICE_FN(vkDestroyDescriptorSetLayout);
     DEVICE_FN(vkCreatePipelineLayout);DEVICE_FN(vkDestroyPipelineLayout);DEVICE_FN(vkCreateGraphicsPipelines);DEVICE_FN(vkCreateRenderPass);DEVICE_FN(vkDestroyRenderPass);DEVICE_FN(vkDestroyPipeline);DEVICE_FN(vkDestroyDevice);
+    // Exercise the actual patched commands with a failed resource Map.
+    // EndCommandBuffer must retain the error; no write/unmap/copy may follow.
+    auto inject=reinterpret_cast<void(*)(int32_t)>(GetProcAddress(dll,"dznSetUwpDiagnosticMapFailure"));
+    auto status=reinterpret_cast<void(*)(VkDevice)>(GetProcAddress(dll,"dznReportUwpDeviceStatus"));
+    Require(inject&&status,"map injection and device status exports");status(device);
+    DEVICE_FN(vkCreateBuffer);DEVICE_FN(vkDestroyBuffer);DEVICE_FN(vkGetBufferMemoryRequirements);
+    DEVICE_FN(vkAllocateMemory);DEVICE_FN(vkFreeMemory);DEVICE_FN(vkBindBufferMemory);
+    DEVICE_FN(vkCreateCommandPool);DEVICE_FN(vkDestroyCommandPool);DEVICE_FN(vkAllocateCommandBuffers);
+    DEVICE_FN(vkBeginCommandBuffer);DEVICE_FN(vkEndCommandBuffer);DEVICE_FN(vkResetCommandBuffer);
+    DEVICE_FN(vkCmdFillBuffer);DEVICE_FN(vkCmdUpdateBuffer);
+    VkBufferCreateInfo bci{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bci.size=256;bci.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    VkBuffer buffer{};Require(vkCreateBuffer(device,&bci,nullptr,&buffer)==VK_SUCCESS,"transfer buffer");
+    VkMemoryRequirements req{};vkGetBufferMemoryRequirements(device,buffer,&req);
+    unsigned memory_type=0;while(memory_type<32&&!(req.memoryTypeBits&(1u<<memory_type)))++memory_type;
+    Require(memory_type<32,"transfer memory type");VkMemoryAllocateInfo mai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};mai.allocationSize=req.size;mai.memoryTypeIndex=memory_type;
+    VkDeviceMemory memory{};Require(vkAllocateMemory(device,&mai,nullptr,&memory)==VK_SUCCESS,"transfer memory");
+    Require(vkBindBufferMemory(device,buffer,memory,0)==VK_SUCCESS,"bind transfer buffer");
+    VkCommandPoolCreateInfo cpci{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};cpci.queueFamilyIndex=family;cpci.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VkCommandPool pool{};Require(vkCreateCommandPool(device,&cpci,nullptr,&pool)==VK_SUCCESS,"command pool");
+    VkCommandBufferAllocateInfo cbai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};cbai.commandPool=pool;cbai.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;cbai.commandBufferCount=1;
+    VkCommandBuffer command{};Require(vkAllocateCommandBuffers(device,&cbai,&command)==VK_SUCCESS,"command buffer");
+    const uint32_t words[16]={0x12345678};
+    for(unsigned fail=0;fail<2;++fail)for(unsigned update=0;update<2;++update){
+        Require(vkResetCommandBuffer(command,0)==VK_SUCCESS,"reset transfer command");
+        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};Require(vkBeginCommandBuffer(command,&begin)==VK_SUCCESS,"begin transfer command");
+        inject(fail?int32_t(0x80004005):0);
+        if(update)vkCmdUpdateBuffer(command,buffer,0,sizeof(words),words);else vkCmdFillBuffer(command,buffer,0,64,0x12345678);
+        const auto result=vkEndCommandBuffer(command);inject(0);
+        Require(result==(fail?VK_ERROR_MEMORY_MAP_FAILED:VK_SUCCESS),"failed map preserved / successful transfer recording");
+    }
+    Require(map_failures==2,"both transfer maps guarded");
+    vkDestroyCommandPool(device,pool,nullptr);vkDestroyBuffer(device,buffer,nullptr);vkFreeMemory(device,memory,nullptr);
+    std::puts("Dozen transfer map contract: PASS two injected failures and two successful recordings; no GPU execution");
     VkDescriptorSetLayoutBinding bindings[3]={{0,VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,1,VK_SHADER_STAGE_ALL,nullptr},
         {1,VK_DESCRIPTOR_TYPE_SAMPLER,1,VK_SHADER_STAGE_ALL,nullptr},{2,VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,1,VK_SHADER_STAGE_ALL,nullptr}};
     VkDescriptorSetLayoutCreateInfo sci{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};sci.bindingCount=3;sci.pBindings=bindings;

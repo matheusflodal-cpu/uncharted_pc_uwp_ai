@@ -84,3 +84,11 @@ xbox/graphics/dzn_diagnostic_sink.h.
 The Dozen diagnostic header also provides a host-test-only shader-model
 limit switch (SM 6.0). It defaults off; the Xbox app never invokes it. The
 strict source patch applies the test limit to both NIR and DXIL model caps.
+
+
+0.6.6 conservative rendering boundaries are adapted from Cosmo/gow3_xbox,
+commit 5203195e3fad1703fcea26aa28a1290b17a70075, vk_scheduler.cpp
+(FullBarriers / RecordFullBarrier), under the existing GPL-2.0-or-later
+notices. The Mesa command-map guard and diagnostics are MIT additions in
+xbox/graphics/dzn_map_guard.h and the strict build-time patch; upstream
+Microsoft/Mesa notices are retained. Test injection defaults off in the app.

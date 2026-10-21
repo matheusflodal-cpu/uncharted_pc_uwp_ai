@@ -30,4 +30,14 @@ static void dzn_uwp_report(const char *phase,uint32_t detail,const char *message
              phase?phase:"unknown",(unsigned)detail,message?message:"");
     dzn_uwp_sink(line);
 }
+// Fault injection is confined to the desktop command contract; off by default.
+static int32_t dzn_uwp_map_failure;
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+void dznSetUwpDiagnosticMapFailure(int32_t status) { dzn_uwp_map_failure=status; }
+int32_t dznUwpDiagnosticMapFailure(void) {return dzn_uwp_map_failure;}
+void dznUwpReportCommandError(const char *phase,uint32_t status) {
+    dzn_uwp_report(phase,status,"command recording failure; error preserved");
+}
 #endif

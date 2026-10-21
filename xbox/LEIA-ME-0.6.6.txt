@@ -1,0 +1,26 @@
+UNCHARTED UWP 0.6.6 — SINCRONIZACAO E PERDA DO DISPOSITIVO
+
+Na 0.6.5, o testador confirmou as logos do jogo no Xbox. Menu e gameplay
+ainda nao foram confirmados. O log passou da antiga rejeicao de shader e
+registrou 741 pedidos de apresentacao, depois perda do dispositivo grafico.
+
+1. Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+   VCLibs em Dependencies. Use o mesmo dump e o controle ligado.
+2. Selecione Uncharted 3 e tente iniciar. O modo conservador ja vem ativo.
+3. Se fechar ou ficar preto, guarde loader.log e errors.log antes de reabrir.
+   Se nao fechar, aguarde ate cinco minutos apos a preparacao.
+
+O QUE MUDA
+Aplica barreiras conservadoras entre escopos de renderizacao, baseadas no
+GoW3 UWP. E um teste da hipotese de sincronizacao; pode reduzir desempenho.
+O driver verifica falhas ao mapear buffers de preenchimento/atualizacao,
+preservando o erro Vulkan em vez de escrever em um ponteiro nulo.
+Se houver perda do dispositivo, registra o HRESULT nativo e encerra sem
+continuar a liberar recursos em paralelo com as threads do jogo.
+A correcao das texturas inteiras da 0.6.5 continua ativa.
+
+OPCAO PARA COMPARACAO (so se for solicitada)
+No LocalState, gpu-sync.txt pode conter "normal" ou "conservative".
+Sem esse arquivo, o padrao e conservative. Nao altere no primeiro teste.
+Nao precisa repetir os testes de som/botoes nem copiar o jogo novamente.
+O pacote nao inclui arquivos do jogo.

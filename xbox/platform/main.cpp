@@ -194,7 +194,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.5 — single-level integer point sampling");
+    std::puts("Uncharted UWP 0.6.6 — GPU loss diagnostics and conservative synchronization");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -207,6 +207,14 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _putenv_s("BB_UPSCALER","off");
     _putenv_s("BB_FRAME_GEN","off");
     _putenv_s("BB_OBJECT_MOTION","0");
+    FILE* sync_settings=uncharted_uwp_fopen((root+"\\gpu-sync.txt").c_str(),"rb");
+    const std::string sync_mode=line(sync_settings);
+    if(sync_settings) std::fclose(sync_settings);
+    if(!sync_mode.empty() && sync_mode!="normal" && sync_mode!="conservative")
+        throw std::runtime_error("gpu-sync.txt must contain normal or conservative");
+    _putenv_s("UNCHARTED_FULL_BARRIERS",sync_mode=="normal"?"0":"1");
+    std::printf("GPU sync mode: %s\n",sync_mode=="normal"?"normal":"conservative");
+
 #endif
     if(!native_smoke()) { std::puts("STOP: executable-memory smoke failed"); return 1; }
     _putenv_s("BB_GPU_USER_DIR",root.c_str());
@@ -216,7 +224,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6.5",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.6",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {

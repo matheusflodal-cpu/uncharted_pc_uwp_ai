@@ -632,3 +632,49 @@ This checks compiler acceptance and scalar addressing, not rendered pixels
 or an Xbox game boot. The real FS texture/sampler parameters remain unknown
 until the next console test; eligibility is explicitly logged. No game
 image, menu or gameplay is established.
+
+
+## Xbox 0.6.5: first game logos confirmed
+
+Tester explicitly reports the logos, without reaching the menu. errors (7).log
+shows the integer sample lowering for FS 0x81a0a982 and subsequent pipelines.
+loader (10).log at 35.391 s: 7670 draw requests, 4502 dispatch requests, 741
+flip requests, 743 bridge_present calls returned. Counts do not establish
+distinct visible frames. Last memory sample 4244/5120 MiB is not a peak.
+errors ends with Vulkan -4 at presentation wait, then null write in
+vulkan_dzn.dll+0x4bca. Disassembly of the exact 0.6.5 DLL shows rep stos after
+an unchecked resource Map. Function argument flow and allocation sequence
+match dzn_CmdFillBuffer. This supports a secondary CPU map failure; it does
+not identify why the graphics device was lost initially.
+
+## v0.6.6 conservative synchronization and device diagnostics
+
+Scheduler rendering-boundary barriers are adapted from Cosmo/gow3_xbox
+5203195e3fad1703fcea26aa28a1290b17a70075. They execute outside dynamic
+rendering and inside the same recorder order, with ALL_COMMANDS and
+MEMORY_READ|MEMORY_WRITE in both directions. The default app mode enables
+them; LocalState/gpu-sync.txt normal/conservative provides an A/B switch.
+This investigates synchronization rather than claiming a proven loss fix.
+
+The strict Mesa patch now checks both pinned pipeline and command files.
+CmdFillBuffer and CmdUpdateBuffer check Map status and pointer before any
+pointer arithmetic, write, Unmap or CopyBufferRegion. Failure queries the
+native removed reason, logs both codes and sets the Vulkan command-buffer
+recording error to DEVICE_LOST or MEMORY_MAP_FAILED. It never returns success
+for a failed recording. Successful paths retain their original operations.
+
+A desktop-only Map injection setter defaults to zero and is never called
+by the app. The native compiler contract injects failed maps into both real
+commands, requires EndCommandBuffer to preserve MEMORY_MAP_FAILED, then
+also checks successful recordings. A standalone C contract covers null
+success pointers, failure with nonnull pointer, removed-device classification
+and injection reset. No GPU transfer execution is claimed by these tests.
+
+The driver exports native GetDeviceRemovedReason reporting. The bridge logs
+its own D3D12 device reason and requests the driver's reason on lost waits.
+A native fence UINT64_MAX is treated as device removed. These confirmed
+loss paths flush logs and exit, avoiding concurrent unwind after an unusable
+device. Generic scheduler loss also requests the driver report. This is
+failure handling, not device recovery or evidence that the menu is reached.
+
+Windows validation and Xbox 0.6.6 behavior remain pending below.

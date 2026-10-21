@@ -31,6 +31,8 @@ def main():
                          ("tests/test_file_mods.c", "file-mods")]:
         run(*common, source, "-o", OUT / name)
         run(OUT / name)
+    run(*common,"tests/test_uwp_dzn_map.c","-o",OUT/"dzn-map-contract")
+    run(OUT/"dzn-map-contract")
     run(*common, "tests/test_uwp_dzn_diagnostics.c", "-o", OUT / "dzn-diagnostic-contract")
     run(OUT / "dzn-diagnostic-contract")
     run(*common, "tests/test_uwp_pad.c", "-o", OUT / "pad-contract")

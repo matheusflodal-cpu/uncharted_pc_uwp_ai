@@ -52,6 +52,27 @@ u64 g_recent_count;
 std::vector<std::pair<const Scheduler*, const Instance*>> g_schedulers;
 } // namespace
 
+// Conservative rendering boundaries from Cosmo/gow3_xbox, 5203195e3fad.
+// Kept outside dynamic rendering scopes and in recorder order.
+bool Scheduler::FullBarriers() {
+    static const bool enabled=[] {
+        const char* value=std::getenv("UNCHARTED_FULL_BARRIERS");
+        const bool on=value && value[0]=='1';
+        std::printf("GPU: conservative render barriers %s\n",on?"on":"off");
+        return on;
+    }();
+    return enabled;
+}
+void Scheduler::RecordFullBarrier(vk::CommandBuffer cmd) {
+    const vk::MemoryBarrier2 barrier{
+        .srcStageMask=vk::PipelineStageFlagBits2::eAllCommands,
+        .srcAccessMask=vk::AccessFlagBits2::eMemoryRead|vk::AccessFlagBits2::eMemoryWrite,
+        .dstStageMask=vk::PipelineStageFlagBits2::eAllCommands,
+        .dstAccessMask=vk::AccessFlagBits2::eMemoryRead|vk::AccessFlagBits2::eMemoryWrite,
+    };
+    cmd.pipelineBarrier2(vk::DependencyInfo{.memoryBarrierCount=1,.pMemoryBarriers=&barrier});
+}
+
 void Scheduler::ReportStall() {
     std::scoped_lock lk{g_recent_mutex};
     for (const auto& [scheduler, inst] : g_schedulers) {
@@ -168,6 +189,7 @@ void Scheduler::BeginRendering(const RenderState& new_state) {
     };
 
     if (!recording_threaded) {
+        if(FullBarriers()) RecordFullBarrier(current_cmdbuf);
         current_cmdbuf.beginRendering(rendering_info);
         return;
     }
@@ -181,6 +203,7 @@ void Scheduler::BeginRendering(const RenderState& new_state) {
         if (info.pStencilAttachment) {
             info.pStencilAttachment = &stencil_attachment;
         }
+        if(FullBarriers()) RecordFullBarrier(cmdbuf);
         cmdbuf.beginRendering(info);
     });
 }
@@ -190,7 +213,10 @@ void Scheduler::EndRendering() {
         return;
     }
     is_rendering = false;
-    Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRendering(); });
+    Record([](vk::CommandBuffer cmdbuf) {
+        cmdbuf.endRendering();
+        if(FullBarriers()) RecordFullBarrier(cmdbuf);
+    });
 }
 
 void Scheduler::TraceDirectRecording(void* caller) {

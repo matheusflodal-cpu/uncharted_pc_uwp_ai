@@ -3,6 +3,7 @@
 
 #ifdef UNCHARTED_UWP
 #include "boot_trace.h"
+#include "present_bridge.h"
 #endif
 #include <cstdio>
 #include <cstdlib>
@@ -37,6 +38,9 @@ namespace Vulkan {
 // Also called where a submission or present reports the loss (vk_semaphore.h).
 [[noreturn]] void DeviceLost(vk::Device device) {
     std::printf("GPU crash: the graphics device was lost\n");
+#ifdef UNCHARTED_UWP
+    UnchartedUwp::ReportDeviceStatus(device);
+#endif
     if (g_device_fault_ext && VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT) {
         const auto get = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT;
         VkDeviceFaultCountsEXT counts{.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT};

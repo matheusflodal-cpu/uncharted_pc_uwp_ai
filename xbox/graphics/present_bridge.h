@@ -23,4 +23,5 @@ private:
 int GraphicsProbe();
 int TextureProbe();
 void InitializeDriver();
+void ReportDeviceStatus(vk::Device device);
 }
