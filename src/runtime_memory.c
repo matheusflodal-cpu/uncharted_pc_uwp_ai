@@ -384,6 +384,7 @@ static int vma_insert(size_t at, Vma v) {
     vmas[at]=v; ++vma_count; return 0;
 }
 static void vma_erase(size_t at, size_t n) {
+    if (!n) return; /* An empty table can have a null base; do not pass it to memmove. */
     memmove(vmas+at,vmas+at+n,(vma_count-at-n)*sizeof(*vmas)); vma_count-=n;
 }
 static int split_at(uintptr_t a) {

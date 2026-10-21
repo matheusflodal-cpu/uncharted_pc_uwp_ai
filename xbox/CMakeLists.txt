@@ -28,7 +28,7 @@ add_executable(uncharted_memory_contract platform/memory_contract_host.c platfor
   platform/diagnostic_services.c "${UNCHARTED_ROOT}/tests/test_uwp_posix_memory.c" ${cpu_sources})
 add_executable(uncharted_pad_contract "${UNCHARTED_ROOT}/tests/test_uwp_pad.c")
 target_include_directories(uncharted_pad_contract PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_ROOT}/src"
-  platform "${UNCHARTED_DEPS}/winpthreads/include")
+  platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
 target_compile_definitions(uncharted_pad_contract PRIVATE _TIMESPEC_DEFINED _MODE_T_)
 target_link_libraries(uncharted_pad_contract PRIVATE "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
 set(cpu_targets uncharted_uwp uncharted_memory_contract)
