@@ -53,7 +53,7 @@ confirmado.
 | 0.6.1 | Medições de compilação, CPU/RAM e mensagens do jogo; teste de boot de 5 min | 9 draws/4 dispatches estáveis, zero flip do jogo, aviso de controle; watchdog de 300 s |
 | 0.6.2 | Medições do driver de tiling, registro de comandos, esperas PM4 e controle durante o boot | Driver de tiling retornou em 42 ms; quarta DispatchRecord não retornou; consulta do controle vazia |
 | 0.6.3 | Cópia de origem guest antes do lock de commit e controle verificado antes do boot | Quarta dispatch retornou em 36 ms; controle reconhecido; avançou até outro pipeline, que falhou com ErrorOutOfHostMemory |
-| 0.6.4 | Dozen com diagnóstico nativo de DXIL/D3D12 e estado/memória de pipelines | Pendente |
+| 0.6.4 | Dozen com diagnóstico nativo de DXIL/D3D12 e estado/memória de pipelines | Build Windows e contratos passaram; teste Xbox pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo

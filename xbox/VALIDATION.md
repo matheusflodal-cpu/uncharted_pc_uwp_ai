@@ -522,3 +522,24 @@ Local tests cover exact source-pin/context checks, rejection of changed or
 already patched source, and native-code formatting, long-message bounds,
 disabled callback and concurrent sink calls. Windows driver rebuild and
 Xbox results are pending until recorded below.
+
+
+## v0.6.4 Windows build and package
+
+Code dc095368146f01854645c01678b438e9fefea7fc; Actions run
+39683566279. The pinned Mesa source was rebuilt with MSVC 14.44 after
+passing the strict patch contract. The resulting driver exports
+`dznSetUwpDiagnosticCallback`; its DLL SHA256 is
+45d284f8a08df1d5063ec95e755a2b63cf9c43d9f813561c90db2051dae79437.
+
+The full Windows renderer compiled and linked. The native diagnostic sink
+passed 26 checks, pad 193, overlay 31, boot trace 29, dialog 21, AudioOut
+100 plus device failure, and AJM 4648 with actual MP3 decode/ATRAC9 init.
+Native preparation passed against the original Python tools. Memory tests
+passed guest-source page-fault regression, 8242 swap checks with zero
+corruption, and 32786 POSIX checks. Active UWP imports passed the allowlist;
+the APPX 0.6.4.0 was signed. Separate CPU and basic graphics builds passed.
+These checks validate Windows builds/contracts, not an Xbox game boot.
+
+The new driver error channel and the result of the next game boot still
+require Xbox testing. No menu, game image or gameplay is confirmed.
