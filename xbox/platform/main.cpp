@@ -25,6 +25,7 @@
 
 extern "C" int uncharted_probe_main(int argc,char **argv);
 #ifdef UNCHARTED_GUEST_INPUT
+#include "input.h"
 int UnchartedInputProbe();
 int UnchartedAudioProbe();
 extern "C" void runtime_pad_boot_snapshot(FILE*);
@@ -193,7 +194,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.2 — PM4 waits, tiling driver trace and guest controller diagnostics");
+    std::puts("Uncharted UWP 0.6.3 — staged guest memory copies and controller readiness");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -215,7 +216,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6.2",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.3",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {
@@ -279,6 +280,14 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     watch_for(300,"preparation");
     if(dump.empty()) dump=discover_dump(root);
     prepare_dump(dump,root,game);
+#ifdef UNCHARTED_GUEST_INPUT
+    if(mode=="boot") {
+        watch_for(15,"controller readiness");
+        const int ready=uncharted_uwp_wait_gamepad(5000);
+        if(ready<0) throw std::runtime_error("Falha ao consultar o controle do Xbox. Guarde os logs.");
+        if(!ready) throw std::runtime_error("Controle nao detectado antes do boot. Ligue o controle e tente iniciar novamente.");
+    }
+#endif
     watch_for(mode=="boot" ? 300 : 90,mode=="boot" ? "guest boot" : "imports");
     std::string prepared=root+"\\Prepared\\u"+game;
     const std::string user=root+"\\user";

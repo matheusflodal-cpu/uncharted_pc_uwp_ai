@@ -19,6 +19,25 @@ static void *uwp_test_table_writer(void *opaque) {
 int runtime_memory_selftest(void) {
     int64_t physical=0; void *first=NULL,*alias=NULL,*remapped=NULL;
     puts("UWP memory contract self-test starting");
+    // Regression: copying an untouched guest source used to enter its commit
+    // fault while holding uwp_commit_lock, recursively acquiring the SRW lock.
+    void *copy_source=NULL,*copy_dest=NULL;
+    if(map_flexible(&copy_source,2*PAGE,3,0)||map_flexible(&copy_dest,2*PAGE,3,0)) return 108;
+    if(uwp_page((uintptr_t)copy_source)->committed||uwp_page((uintptr_t)copy_source+PAGE)->committed) return 109;
+    if(host_protect((uintptr_t)copy_dest,2*PAGE,PROT_READ)) return 110;
+    const size_t source_offset=4093,copy_size=PAGE+19;
+    if(!runtime_memory_write_backing((uintptr_t)copy_dest,(unsigned char *)copy_source+source_offset,copy_size)) return 111;
+    for(size_t i=0;i<copy_size;++i) if(((volatile unsigned char *)copy_dest)[i]) return 112;
+    MEMORY_BASIC_INFORMATION copy_info;
+    if(!VirtualQuery(copy_dest,&copy_info,sizeof(copy_info))||copy_info.Protect!=PAGE_READONLY) return 113;
+    for(size_t i=0;i<2*PAGE;++i) ((unsigned char *)copy_source)[i]=(unsigned char)(i*37+11);
+    // Stale host protection must also recover before the destination lock.
+    DWORD source_old;
+    if(!VirtualProtectFromApp(copy_source,4096,PAGE_NOACCESS,&source_old)) return 114;
+    if(!runtime_memory_write_backing((uintptr_t)copy_dest,(unsigned char *)copy_source+3,copy_size)) return 115;
+    for(size_t i=0;i<copy_size;++i) if(((volatile unsigned char *)copy_dest)[i]!=(unsigned char)((i+3)*37+11)) return 116;
+    if(release_flexible(copy_source,2*PAGE)||release_flexible(copy_dest,2*PAGE)) return 117;
+    puts("PASS: guest-source backing copies recover lazy pages and stale protection before taking the commit lock");
     if(direct_allocate(0,(int64_t)POOL_SIZE,2*PAGE,PAGE,0,&physical)) return 1;
     if(direct_map(&first,2*PAGE,3,0,physical,PAGE)) return 2;
     volatile uint32_t *value=first;

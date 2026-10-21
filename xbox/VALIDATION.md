@@ -430,3 +430,34 @@ build workflows also succeeded.
 These results validate the build and host contracts. The added recording,
 tiling, PM4 and controller traces need the next Xbox boot attempt; no fix
 for the black screen or playable game has been established.
+
+## Xbox 0.6.2 and the 0.6.3 memory correction
+
+loader.log (4).txt and errors.log (2).txt: the detiler driver call returned
+in 42 ms, all 8 measured tiling calls and 9 DrawRecord calls returned. The
+fourth DispatchRecord started at 4417 ms and remained pending through
+300105 ms (295688 ms pending). Queue 0 remained at 92 submitted tasks,
+41 resumes, 40 completions and 752 packets, last opcode 0x15. No measured
+PM4 wait was pending. That locates a block within DispatchRecord, not its
+exact operation. Input opened successfully for user 1; its only host sample
+reported absent, then no guest reads followed. Memory settled at 2420/5120 MiB.
+
+Code inspection found a concrete reentrancy hazard in uwp_backing_write:
+memcpy could read a guest source while holding uwp_commit_lock; a lazy/stale
+source page fault calls a handler which takes that same exclusive SRW lock.
+0.6.3 stages each source chunk into bounded host storage before locking the
+destination. Small fences use 256 stack bytes; larger copies allocate one
+16 KiB host buffer, avoiding a large guest-stack array. The destination
+protection restore/alias/swap paths remain in the existing backend. This
+corrects a real deadlock risk; the Xbox trace has not yet proven it was hit.
+New Windows regression cases use untouched guest source pages across a
+boundary, stale host PAGE_NOACCESS with logical RW permissions and a read-only
+destination. Existing memory/swap checks still run. Added scopes measure
+HLE shader dispatch, image-to-buffer synchronization, backing writes, resource
+binding and pending scheduler operations.
+
+Before guest boot, the real Gamepad API is polled for up to five seconds
+(50 ms interval); absence or API failure stops with an explanatory message.
+This does not fabricate a pad or modify guest pad ABI. A host call stuck
+during this step is bounded by the separate 15-second phase watchdog.
+Windows build, regression and Xbox validation are recorded below when done.

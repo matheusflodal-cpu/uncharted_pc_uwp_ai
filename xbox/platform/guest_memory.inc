@@ -286,7 +286,9 @@ static void host_discard(uint64_t offset,uint64_t size) {
         physical->pinned=physical->hash_valid=0;
     }
 }
-static int uwp_backing_write(uintptr_t address,const void *source,uint64_t size) {
+// source must be resident host storage: reading a guest source under this lock
+// can fault and re-enter runtime_memory_handle_commit_fault_at's exclusive lock.
+static int uwp_backing_write_staged(uintptr_t address,const void *source,uint64_t size) {
     AcquireSRWLockExclusive(&uwp_commit_lock);
     int result=1;
     while(size) {
@@ -320,6 +322,26 @@ static int uwp_backing_write(uintptr_t address,const void *source,uint64_t size)
         address+=n; source=(const unsigned char *)source+n; size-=n;
     }
     ReleaseSRWLockExclusive(&uwp_commit_lock);
+    return result;
+}
+static int uwp_backing_write(uintptr_t address,const void *source,uint64_t size) {
+    if(!size) return 1;
+    // Small fence writes avoid allocation. Large copies use one bounded host
+    // buffer, not a page-sized array on a guest thread's 64 KiB stack.
+    unsigned char local[256];
+    const size_t capacity=size<=sizeof(local) ? sizeof(local) : (size_t)PAGE;
+    unsigned char *staged=capacity==sizeof(local) ? local : malloc(capacity);
+    if(!staged) return 0;
+    int result=1;
+    while(size) {
+        const uint64_t n=size<capacity ? size : capacity;
+        // Fault/restore the source before acquiring uwp_commit_lock. The outer
+        // region-table read lock supports nested fault-handler readers.
+        memcpy(staged,source,(size_t)n);
+        if(!uwp_backing_write_staged(address,staged,n)) { result=0;break; }
+        address+=n;source=(const unsigned char *)source+n;size-=n;
+    }
+    if(staged!=local) free(staged);
     return result;
 }
 static void uwp_memory_report(void) {

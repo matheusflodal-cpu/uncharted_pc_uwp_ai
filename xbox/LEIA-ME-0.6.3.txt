@@ -1,0 +1,25 @@
+UNCHARTED UWP 0.6.3 — COPIA DE MEMORIA E DETECCAO DO CONTROLE
+
+Ainda nao ha imagem do jogo, menu ou gameplay confirmado. Nao inclui o jogo.
+
+1. Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+   VCLibs de Dependencies. Mantenha o mesmo dump e o controle ligado.
+2. Escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+3. O app verifica a presenca real do controle por ate 5 segundos antes do
+   boot. Se nao encontrar, mostra um erro em vez de entrar sem controle.
+   Ligue/reconecte o controle e tente iniciar novamente nesse caso.
+4. Aguarde ate CINCO MINUTOS apos a preparacao/verificacao do controle.
+   O diagnostico ainda encerra nesse limite. Se fechar antes, guarde os logs.
+5. Envie loader.log E errors.log antes de reabrir o app.
+
+O QUE MUDOU
+Corrigido um risco de travamento na copia: ler uma pagina do jogo dentro do
+bloqueio usado para carrega-la podia exigir esse mesmo bloqueio novamente.
+A leitura agora passa por um buffer pequeno do host antes de adquirir o
+bloqueio do destino. As protecoes do destino continuam sendo restauradas.
+Os logs medem tambem o shader HLE, sincronizacao de imagem, copia de memoria,
+vinculacao de recursos e operacoes pendentes dentro da chamada que parou.
+O teste anterior provou que o pipeline de texturas retornou em 42 ms, mas a
+quarta chamada DispatchRecord ficou sem retorno. Ainda nao esta provado que
+o defeito de memoria corrigido seja a causa dessa parada no Xbox.
+Nao precisa repetir testes de som/botoes ou copiar o jogo novamente.

@@ -14,12 +14,12 @@ using U64 = unsigned long long;
 enum class Kind { Shader, Translate, Spirv, Graphics, Compute, DriverGraphics,
     DriverCompute, Submit, RecordSync, CopyWait, DriverSubmit, GpuWait, DrawDrain,
     BridgeAcquire, BridgePresent, TimelineQuery, TilingPipeline, DriverTiling,
-    DrawRecord, DispatchRecord, Count };
+    DrawRecord, DispatchRecord, ShaderHle, ImageSync, BackingWrite, ResourceBind, PendingOps, Count };
 inline constexpr const char* names[] = {"shader", "translate", "spirv", "graphics_pipeline",
     "compute_pipeline", "driver_graphics", "driver_compute", "scheduler_submit",
     "record_sync", "copy_wait", "driver_submit", "gpu_wait", "draw_drain",
     "bridge_acquire", "bridge_present", "timeline_query", "tiling_pipeline",
-    "driver_tiling", "draw_record", "dispatch_record"};
+    "driver_tiling", "draw_record", "dispatch_record", "shader_hle", "image_sync", "backing_write", "resource_bind", "pending_ops"};
 struct Counter { std::atomic<U64> started{0}, ended{0}, failed{0}, active{0}; };
 struct Slot {
     std::atomic<unsigned> state{0}, kind{0}; // free, initializing, active

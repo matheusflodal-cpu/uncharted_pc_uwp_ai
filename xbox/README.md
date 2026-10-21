@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.2)
+## Teste atual (0.6.3)
 
-Veja [LEIA-ME-0.6.2.txt](LEIA-ME-0.6.2.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.3.txt](LEIA-ME-0.6.3.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -51,7 +51,8 @@ confirmado.
 | 0.5.1 | Verificação do carregamento do overlay e logs de inicialização gráfica | Xbox executou código do jogo; parou em sceAudioOutInit |
 | 0.6 | AudioOut via XAudio2, AJM ATRAC9/MP3 e teste de som | Tom ouvido no Xbox; boot abriu áudio/AJM e chegou a shaders reais; watchdog de 90 s encerrou |
 | 0.6.1 | Medições de compilação, CPU/RAM e mensagens do jogo; teste de boot de 5 min | 9 draws/4 dispatches estáveis, zero flip do jogo, aviso de controle; watchdog de 300 s |
-| 0.6.2 | Medições do driver de tiling, registro de comandos, esperas PM4 e controle durante o boot | Pendente |
+| 0.6.2 | Medições do driver de tiling, registro de comandos, esperas PM4 e controle durante o boot | Driver de tiling retornou em 42 ms; quarta DispatchRecord não retornou; consulta do controle vazia |
+| 0.6.3 | Cópia de origem guest antes do lock de commit, controle verificado antes do boot e escopos internos de dispatch | Pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -198,3 +199,15 @@ POSIX e os 44 testes Python existentes. As entradas do teste de pad são simulad
 a integração com o controle físico precisa ser validada no Xbox. Para o mesmo
 executável U3 do log, esperam-se 50 pendências no modo imports. Isso não é
 evidência de gameplay. A próxima tentativa útil é **Tentar iniciar**, após o teste do controle.
+
+## Correcao de memoria na 0.6.3
+
+A copia para o backing UWP lia a origem enquanto segurava o lock de commit.
+Uma origem guest ainda nao carregada ou com protecao host antiga podia
+provocar uma falta de pagina cujo handler adquire o mesmo lock exclusivo.
+A leitura agora ocorre antes desse lock em buffer host limitado a 16 KiB,
+com buffer de pilha de apenas 256 bytes para pequenos fences. O teste Windows
+cobre origem lazy, cruzamento de paginas, protecao antiga e destino read-only.
+Ainda e necessario confirmar se esse defeito explica o bloqueio do Xbox.
+O boot exige uma deteccao real do controle em ate cinco segundos; nenhuma
+conexao e fabricada. A lista inicial vazia do ultimo log deixou de ser ignorada.

@@ -16,6 +16,9 @@ typedef struct {
 // 1 connected, 0 absent, -1 host API failure. Output is initialized on every call.
 int uncharted_uwp_gamepad(UnchartedInput *reading);
 int uncharted_uwp_vibration(uint8_t large,uint8_t small);
+// Poll real device enumeration before guest startup: 1 ready, 0 timed out,
+// -1 host failure. Does not open a guest pad port or fabricate a connection.
+int uncharted_uwp_wait_gamepad(unsigned timeout_ms);
 #ifdef __cplusplus
 }
 #endif

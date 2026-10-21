@@ -416,6 +416,9 @@ void Scheduler::Wait(u64 tick) {
 }
 
 void Scheduler::PopPendingOperations() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::PendingOps,0,reinterpret_cast<uintptr_t>(this));
+#endif
     if (num_pending_ops.load(std::memory_order_acquire) == 0) {
         return; // every draw comes here
     }

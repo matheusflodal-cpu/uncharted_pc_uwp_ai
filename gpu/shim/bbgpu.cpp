@@ -1,3 +1,6 @@
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include "bbport_write_log.h"
 // bbport: glue between the C loader and the vendored shadPS4 video core.
 #include "bbport_overlay.h"
@@ -141,6 +144,9 @@ void MemoryManager::CopySparseMemory(VAddr source, u8* dest, u64 size) {
     });
 }
 bool MemoryManager::TryWriteBacking(void* address, const void* data, u64 size) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::BackingWrite,size,reinterpret_cast<uintptr_t>(address));
+#endif
     BbWriteLog::Note(reinterpret_cast<uintptr_t>(address), data, size, BbWriteLog::Backing);
     return runtime_memory_write_backing(reinterpret_cast<uintptr_t>(address), data, size) != 0;
 }

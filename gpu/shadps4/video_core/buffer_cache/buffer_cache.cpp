@@ -1,3 +1,6 @@
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -1240,6 +1243,9 @@ const Buffer* BufferCache::UploadCopies(const Buffer* arena, std::span<vk::Buffe
 }
 
 bool BufferCache::SyncImageToBuffer(VAddr addr, u32 size) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::ImageSync,size,addr);
+#endif
     if (!texture_cache.FindImageFromRange(addr, size)) {
         return false;
     }

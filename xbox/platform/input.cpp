@@ -61,3 +61,18 @@ extern "C" int uncharted_uwp_vibration(uint8_t large,uint8_t small) {
         return 1;
     } catch(const winrt::hresult_error&) { return -1; }
 }
+extern "C" int uncharted_uwp_wait_gamepad(unsigned timeout_ms) {
+    const auto start=GetTickCount64();
+    for(;;) {
+        UnchartedInput reading{};
+        const int result=uncharted_uwp_gamepad(&reading);
+        const auto elapsed=GetTickCount64()-start;
+        if(result!=0 || elapsed>=timeout_ms) {
+            std::printf("UWP input readiness: result=%d waited=%llu ms generation=%u\n",result,
+                static_cast<unsigned long long>(elapsed),reading.generation);
+            return result;
+        }
+        const auto remaining=timeout_ms-elapsed;
+        Sleep(static_cast<DWORD>(remaining<50?remaining:50));
+    }
+}
