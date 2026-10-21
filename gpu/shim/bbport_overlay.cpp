@@ -119,9 +119,14 @@ ImGuiKey KeyFromGamepad(u8 button) {
 }
 
 float PixelDensity(SDL_WindowID id) {
+#ifdef UNCHARTED_UWP
+    (void)id;
+    return 1.0f;
+#else
     SDL_Window* window = SDL_GetWindowFromID(id);
     const float density = window ? SDL_GetWindowPixelDensity(window) : 1.0f;
     return density > 0.0f ? density : 1.0f;
+#endif
 }
 
 // Marks the settings dirty when a widget changed them.
@@ -515,6 +520,10 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
 }
 
 void UpdateTextInput(SDL_Window* window) {
+#ifdef UNCHARTED_UWP
+    // No SDL window/text-entry backend is installed in this milestone.
+    (void)window;
+#else
     bool want = false;
     {
         std::scoped_lock lock{imgui_mutex};
@@ -527,6 +536,7 @@ void UpdateTextInput(SDL_Window* window) {
             SDL_StopTextInput(window);
         }
     }
+#endif
 }
 
 bool HandleEvent(const SDL_Event& event) {

@@ -183,6 +183,10 @@ bool g_window_ready;
 } // namespace
 
 u32 BbDisplayRefreshHz() {
+#ifdef UNCHARTED_UWP
+    // Nominal PS4 vblank cadence; CoreWindow presentation owns display sync.
+    return 60;
+#else
     static const u32 hz = [] {
         const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
         const u32 rate = mode && mode->refresh_rate > 0 ? u32(mode->refresh_rate + 0.5f) : 60;
@@ -190,6 +194,7 @@ u32 BbDisplayRefreshHz() {
         return std::max<u32>(rate, 60);
     }();
     return hz;
+#endif
 }
 
 #ifdef BB_PGO_GENERATE
@@ -244,7 +249,11 @@ extern "C" int bbgpu_init(const BbGpuConfig* config) {
         }
         g_window_cv.notify_all();
         while (window->PollEvents()) {
+#ifdef UNCHARTED_UWP
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+#else
             SDL_Delay(2);
+#endif
         }
         std::printf("Window closed (close button, Alt+F4 or system quit request)\n");
         std::fflush(stdout);

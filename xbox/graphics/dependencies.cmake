@@ -28,16 +28,12 @@ foreach(option ZYDIS_BUILD_SHARED_LIB ZYDIS_BUILD_EXAMPLES ZYDIS_BUILD_TOOLS ZYD
 endforeach()
 add_subdirectory("${uncharted_deps}/zydis" "${CMAKE_BINARY_DIR}/deps/zydis" EXCLUDE_FROM_ALL)
 
-# SDL only supplies events and gamepad mapping helpers here; the app has its own window, audio and input.
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-foreach(option SDL_TEST_LIBRARY SDL_TESTS SDL_EXAMPLES SDL_INSTALL SDL_UNINSTALL SDL_AUDIO SDL_VIDEO SDL_JOYSTICK
-               SDL_HAPTIC SDL_HIDAPI SDL_SENSOR SDL_POWER SDL_DIALOG SDL_FILESYSTEM SDL_LOCALE SDL_MISC SDL_TRAY
-               SDL_PTHREADS SDL_CLOCK_GETTIME SDL_LIBICONV SDL_SYSTEM_ICONV SDL_OPENVR SDL_PIPEWIRE)
-  set(${option} OFF CACHE BOOL "" FORCE)
-endforeach()
-add_subdirectory("${uncharted_deps}/sdl" "${CMAKE_BINARY_DIR}/deps/sdl" EXCLUDE_FROM_ALL)
-add_library(PkgConfig::SDL3 ALIAS SDL3-static)
+# UWP owns its window and event loop. Retain SDL's event/key type declarations
+# for the shared overlay interface, without linking SDL's desktop runtime.
+add_library(uncharted_sdl_headers INTERFACE)
+target_include_directories(uncharted_sdl_headers INTERFACE "${uncharted_deps}/sdl/include")
+target_compile_definitions(uncharted_sdl_headers INTERFACE SDL_STATIC_LIB)
+add_library(PkgConfig::SDL3 ALIAS uncharted_sdl_headers)
 
 set(CMAKE_C_STANDARD_LIBRARIES "${uncharted_standard_c}")
 set(CMAKE_CXX_STANDARD_LIBRARIES "${uncharted_standard_cxx}")
