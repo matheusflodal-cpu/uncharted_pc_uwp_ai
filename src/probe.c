@@ -40,7 +40,7 @@ static int entered_game;
 static int gpu_enabled;
 int vulkan_smoke(void);
 
-static void fail(const char *message) { fprintf(stderr, "ERROR: %s\n", message); exit(1); }
+static _Noreturn void fail(const char *message) { fprintf(stderr, "ERROR: %s\n", message); exit(1); }
 static uint64_t read64(FILE *f) {
     unsigned char b[8];
     if (fread(b, 1, 8, f) != 8) fail("truncated boot file");
@@ -189,7 +189,7 @@ static void check_cpu(void) {
     while (*name==' ') ++name;
     if (!*name) name="unknown processor";
     fprintf(stderr,"STOP: unsupported CPU %s: missing %s (needs Intel Core 4th generation or newer, or AMD Ryzen)\n",name,missing);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(UNCHARTED_UWP)
     char text[512];
     snprintf(text,sizeof(text),"This processor cannot run the game:\n%s\n\nMissing instructions: %s\n\n"
              "The game uses instructions of the PS4's processor. They need an Intel Core of the 4th "
