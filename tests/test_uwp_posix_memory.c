@@ -37,12 +37,12 @@ int uncharted_posix_memory_contract(void) {
     CHECK(bytes!=failed&&((uintptr_t)bytes%PAGE)==0);
     for(size_t i=0;i<PAGE*2;++i) CHECK(bytes[i]==0);
     bytes[0]=0x73; bytes[PAGE*2-1]=0x9a;
-    CHECK(sync(bytes,PAGE*2,4)==0&&bytes[0]==0x73&&bytes[PAGE*2-1]==0x9a);
-    CHECK(sync(bytes+1,PAGE,4)==-1&&*runtime_errno()==22);
-    CHECK(sync(bytes,PAGE,5)==-1&&*runtime_errno()==22);
+    CHECK(sync(bytes,PAGE*2,0)==0&&bytes[0]==0x73&&bytes[PAGE*2-1]==0x9a);
+    CHECK(sync(bytes+1,PAGE,0)==-1&&*runtime_errno()==22);
+    CHECK(sync(bytes,PAGE,4)==-1&&*runtime_errno()==22);
     CHECK(unmap(bytes,PAGE+1)==0);
     CHECK(!runtime_memory_is_mapped((uintptr_t)bytes,PAGE));
-    CHECK(sync(bytes,PAGE,4)==-1&&*runtime_errno()==12);
+    CHECK(sync(bytes,PAGE,0)==-1&&*runtime_errno()==12);
     CHECK(unmap((void*)1,PAGE)==-1&&*runtime_errno()==22);
     bytes=map(NULL,PAGE,3,0x1001,-1,0);
     CHECK(bytes!=failed); CHECK(bytes[0]==0); CHECK(unmap(bytes,PAGE)==0);

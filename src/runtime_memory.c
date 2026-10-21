@@ -762,11 +762,11 @@ static ABI int32_t posix_munmap(void *address,uint64_t length) {
     return 0;
 }
 static ABI int32_t posix_msync(void *address,uint64_t length,int flags) {
-    /* FreeBSD: MS_ASYNC=1, MS_INVALIDATE=2, MS_SYNC=4. Anonymous pages have no
+    /* FreeBSD: MS_SYNC=0, MS_ASYNC=1, MS_INVALIDATE=2. Anonymous pages have no
      * user file to flush; validate the entire range and accept synchronization.
      */
     uintptr_t start=(uintptr_t)address;
-    if((start&(PAGE-1))||!length||length>UINT64_MAX-(PAGE-1)||flags&~7||(flags&5)==5) {
+    if((start&(PAGE-1))||!length||length>UINT64_MAX-(PAGE-1)||(flags&~3)) {
         *runtime_errno()=22; return -1;
     }
     uint64_t size=align_up(length,PAGE);
