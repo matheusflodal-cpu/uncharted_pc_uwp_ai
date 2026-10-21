@@ -349,3 +349,22 @@ state, eight workers, scope cleanup, exceptions, bounded-slot saturation and
 snapshots; 21 dialog checks covering modes, layouts, bad pointers and bounded
 strings. Existing portable checks and 44 Python tests passed. Windows build
 and new Xbox trace remain pending until recorded below.
+
+## v0.6.1 Windows CI passed
+
+Code: ee73515a4ac3adf188174686b08641e51fd5b891
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39645368261
+
+The full renderer and app compiled and linked. The new boot trace (17 checks)
+and protected dialog parsing (21 checks) passed on Windows, alongside pad
+(187), overlay loader (31), AudioOut (100 plus device failure), AJM (4648),
+native preparation parity (six tests), graphics import resolution, swap
+(8242 checks, zero corruption) and POSIX memory (32786 checks).
+The UWP import allowlist passed and APPX 0.6.1.0 was signed successfully.
+The separate CPU diagnostic and graphics build workflows also succeeded.
+
+The downloaded renderer artifact SHA-256 matches the GitHub Actions digest:
+2c086f086eeb569f9662942438a958552bdf65b61575602bf8fba3b23c634810.
+These are host build/contract results. The five-minute boot and diagnostic
+output still require a new Xbox attempt; they do not establish a fix for
+the black screen, an actual game image, menu or gameplay.
