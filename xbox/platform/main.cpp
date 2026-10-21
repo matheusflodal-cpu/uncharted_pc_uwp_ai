@@ -287,6 +287,9 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
     }
     void SetWindow(winrt::Windows::UI::Core::CoreWindow const& value) {
         window=value;
+        // Xbox B is a gameplay button; do not let the shell treat it as app navigation.
+        winrt::Windows::UI::Core::SystemNavigationManager::GetForCurrentView().BackRequested(
+            [](auto const&,const winrt::Windows::UI::Core::BackRequestedEventArgs& event) { event.Handled(true); });
 #ifdef UNCHARTED_GRAPHICS_PROBE
         core_window=winrt::make_agile(window);
 #endif

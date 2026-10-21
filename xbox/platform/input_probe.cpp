@@ -26,6 +26,7 @@ int UnchartedInputProbe() {
     bool requested=false,vibrating=false;
     ULONGLONG stop_rumble=0,next_log=0,start=GetTickCount64();
     while(GetTickCount64()-start<20000) {
+        if(vibrating&&GetTickCount64()>=stop_rumble) { const uint8_t motors[]={0,0}; rumble(handle,motors); vibrating=false; }
         UwpPadData data{};
         int result=read(handle,&data,1);
         if(result<0) { ++errors; Sleep(20); continue; }
@@ -41,7 +42,6 @@ int UnchartedInputProbe() {
                 requested=true; vibrating=status==0; stop_rumble=GetTickCount64()+200;
             }
         }
-        if(vibrating&&GetTickCount64()>=stop_rumble) { const uint8_t motors[]={0,0}; rumble(handle,motors); vibrating=false; }
         if(GetTickCount64()>=next_log) {
             std::printf("Native pad: connected=%u buttons=0x%x LS=%u,%u RS=%u,%u LT=%u RT=%u\n",
                 unsigned(data.connected),data.buttons,data.left_x,data.left_y,data.right_x,data.right_y,data.l2,data.r2);

@@ -45,6 +45,6 @@ Python scripts. No GoW3 game-specific XML or graphics patches are applied.
 
 The Windows.Gaming.Input apartment, reading and vibration approach adapts
 Cosmo/gow3_xbox `d0975c91d827045724230476c1527cd38afd72f4`,
-`xbox/platform/input.cpp`. Guest pad layouts, errors and export contracts follow
+`xbox/platform/input.cpp`, plus the Xbox Back-request handling in its UWP host. Guest pad layouts, errors and export contracts follow
 Supermedo/uncharted_pc `src/runtime_pad.c`. Error constants were also checked
 against shadPS4's pad_errors.h. New selection, mapping and contract tests are GPL-2.0-or-later.
