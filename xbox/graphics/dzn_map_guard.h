@@ -10,6 +10,10 @@ static int32_t dzn_uwp_check_map(int32_t status,const void *pointer,int32_t remo
     if(status>=0 && pointer) return 0;
     dznUwpReportCommandError("command_resource_map",(uint32_t)status);
     dznUwpReportCommandError("command_device_removed_reason",(uint32_t)removed);
-    return removed<0?-4:-5; // DEVICE_LOST / MEMORY_MAP_FAILED
+    // EndCommandBuffer reports recording failures, not vkMapMemory results.
+    // Keep native device-loss details above and return an allowed recording
+    // error. A known host allocation failure gets its specific Vulkan code.
+    return removed>=0 && (uint32_t)status==UINT32_C(0x8007000e)?-1:-13;
+    // OUT_OF_HOST_MEMORY / UNKNOWN
 }
 #endif

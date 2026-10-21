@@ -13,10 +13,10 @@ int main(void){
     CHECK(dznUwpDiagnosticMapFailure()==0);
     CHECK(dzn_uwp_check_map(0,&marker,0)==0);CHECK(calls==0);
     CHECK(dzn_uwp_check_map(1,&marker,0)==0);CHECK(calls==0);
-    CHECK(dzn_uwp_check_map((int32_t)0x80004005,NULL,0)==-5);CHECK(calls==2);
-    CHECK(dzn_uwp_check_map(0,NULL,0)==-5);CHECK(calls==4);
-    CHECK(dzn_uwp_check_map((int32_t)0x8007000e,&marker,0)==-5);CHECK(calls==6);
-    CHECK(dzn_uwp_check_map((int32_t)0x887a0005,NULL,(int32_t)0x887a0006)==-4);CHECK(calls==8);
+    CHECK(dzn_uwp_check_map((int32_t)0x80004005,NULL,0)==-13);CHECK(calls==2);
+    CHECK(dzn_uwp_check_map(0,NULL,0)==-13);CHECK(calls==4);
+    CHECK(dzn_uwp_check_map((int32_t)0x8007000e,&marker,0)==-1);CHECK(calls==6);
+    CHECK(dzn_uwp_check_map((int32_t)0x887a0005,NULL,(int32_t)0x887a0006)==-13);CHECK(calls==8);
     CHECK(strstr(last,"command_device_removed_reason")&&strstr(last,"0x887a0006"));
     CHECK(marker==0x12345678);
     dznSetUwpDiagnosticMapFailure((int32_t)0x80004005);CHECK(dznUwpDiagnosticMapFailure()<0);

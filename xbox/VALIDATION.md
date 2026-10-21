@@ -660,12 +660,13 @@ The strict Mesa patch now checks both pinned pipeline and command files.
 CmdFillBuffer and CmdUpdateBuffer check Map status and pointer before any
 pointer arithmetic, write, Unmap or CopyBufferRegion. Failure queries the
 native removed reason, logs both codes and sets the Vulkan command-buffer
-recording error to DEVICE_LOST or MEMORY_MAP_FAILED. It never returns success
+recording error to UNKNOWN (or OUT_OF_HOST_MEMORY for a known E_OUTOFMEMORY
+with no device removal). Native lost-device details remain in the log. It never returns success
 for a failed recording. Successful paths retain their original operations.
 
 A desktop-only Map injection setter defaults to zero and is never called
 by the app. The native compiler contract injects failed maps into both real
-commands, requires EndCommandBuffer to preserve MEMORY_MAP_FAILED, then
+commands, requires EndCommandBuffer to preserve UNKNOWN, then
 also checks successful recordings. A standalone C contract covers null
 success pointers, failure with nonnull pointer, removed-device classification
 and injection reset. No GPU transfer execution is claimed by these tests.

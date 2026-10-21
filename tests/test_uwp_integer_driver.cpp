@@ -81,7 +81,7 @@ int main(int argc,char** argv){
         inject(fail?int32_t(0x80004005):0);
         if(update)vkCmdUpdateBuffer(command,buffer,0,sizeof(words),words);else vkCmdFillBuffer(command,buffer,0,64,0x12345678);
         const auto result=vkEndCommandBuffer(command);inject(0);
-        Require(result==(fail?VK_ERROR_MEMORY_MAP_FAILED:VK_SUCCESS),"failed map preserved / successful transfer recording");
+        Require(result==(fail?VK_ERROR_UNKNOWN:VK_SUCCESS),"failed map preserved / successful transfer recording");
     }
     Require(map_failures==2,"both transfer maps guarded");
     vkDestroyCommandPool(device,pool,nullptr);vkDestroyBuffer(device,buffer,nullptr);vkFreeMemory(device,memory,nullptr);
