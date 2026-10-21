@@ -1,6 +1,9 @@
 /* Real guest AudioOut ABI with a deterministic host-device mock. */
 #include "xbox/platform/runtime_audio_uwp.c"
 #include <math.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 static unsigned checks;
 #define CHECK(x) do { ++checks; if(!(x)) { fprintf(stderr,"Audio FAIL line %d: %s\n",__LINE__,#x); exit(1); } } while(0)
 struct UnchartedUwpAudioStream { int channels,is_float; };
