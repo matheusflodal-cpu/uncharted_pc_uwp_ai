@@ -22,6 +22,10 @@ int main(int argc,char** argv){
     Require(argc==2,"layout directory required");
     const std::string dir=argv[1];
     SetDllDirectoryA(dir.c_str());
+    // Match the package rather than allowing a system DXIL.dll to win the
+    // normal desktop search order ahead of SetDllDirectory.
+    Require(LoadLibraryA((dir+"/dxil.dll").c_str())!=nullptr,"preload packaged DXIL validator");
+    Require(LoadLibraryA((dir+"/dxcompiler.dll").c_str())!=nullptr,"preload packaged DXC");
     HMODULE dll=LoadLibraryA((dir+"/vulkan_dzn.dll").c_str());Require(dll!=nullptr,"load packaged Dozen");
     auto set=reinterpret_cast<void(*)(void(*)(const char*))>(GetProcAddress(dll,"dznSetUwpDiagnosticCallback"));Require(set!=nullptr,"diagnostic export");set(Diagnostic);
     auto proc=reinterpret_cast<PFN_vkGetInstanceProcAddr>(GetProcAddress(dll,"vk_icdGetInstanceProcAddr"));Require(proc!=nullptr,"ICD entry");
@@ -83,7 +87,9 @@ int main(int argc,char** argv){
         VkPipeline p{};auto result=vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,1,&pci,nullptr,&p);
         if(p)vkDestroyPipeline(device,p,nullptr);vkDestroyShaderModule(device,module,nullptr);return result;
     };
-    Require(pipeline(Config{},false,true)!=VK_SUCCESS&&validation_failures>0,"original integer sample must reproduce DXIL validation failure");
+    const auto original=pipeline(Config{},false,true);
+    std::printf("Integer driver original VkResult=%d validation_failures=%u\n",int(original),validation_failures);std::fflush(stdout);
+    const bool reproduced=original!=VK_SUCCESS&&validation_failures>0;
     const unsigned prior=validation_failures;
     for(bool sign:{false,true})for(unsigned dim:{1u,2u,3u})for(bool array:{false,true}){
         if(dim==3&&array)continue;
@@ -94,6 +100,7 @@ int main(int argc,char** argv){
         }
     }
     Require(validation_failures==prior,"no lowered DXIL validation failure");
+    Require(reproduced,"original integer fragment sample must reproduce DXIL validation failure");
     vkDestroyShaderModule(device,vertex,nullptr);for(auto pass:passes)vkDestroyRenderPass(device,pass,nullptr);
     vkDestroyPipelineLayout(device,layout,nullptr);vkDestroyDescriptorSetLayout(device,descriptors,nullptr);vkDestroyDevice(device,nullptr);vkDestroyInstance(instance,nullptr);
     std::printf("Integer driver contract: PASS original rejected, %u lowered pipelines accepted; no game/GPU execution tested\n",accepted);

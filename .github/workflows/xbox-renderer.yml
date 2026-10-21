@@ -140,14 +140,14 @@ jobs:
         with:
           path: xbox/.local/deps
           key: renderer-vs2026-v1-${{ hashFiles('xbox/scripts/fetch-deps.py', 'xbox/scripts/graphics-dependencies.json', 'xbox/scripts/build-deps.ps1', 'xbox/scripts/boost-headers.py') }}
+      - name: Isolated integer fragment compiler contract
+        run: ./xbox/scripts/test-integer-driver.ps1
       - name: Compile and link Uncharted renderer
         run: ./xbox/scripts/build.ps1 -CompileRenderer -GraphicsProbe -DozenDirectory "$env:RUNNER_TEMP\dozen" -DxcDirectory "$env:RUNNER_TEMP\dxc"
       - name: Verify integer sampling and packaged driver validation
         run: |
           & ./xbox/.local/build/uncharted_integer_sample_contract.exe
           if($LASTEXITCODE) { throw 'Integer sample emitter contract failed.' }
-          & ./xbox/.local/build/uncharted_integer_driver_contract.exe "$env:GITHUB_WORKSPACE/xbox/.local/build/layout"
-          if($LASTEXITCODE) { throw 'Packaged Dozen integer pipeline contract failed.' }
       - name: Verify native driver diagnostic sink
         run: |
           & ./xbox/.local/build/uncharted_dzn_diagnostic_contract.exe
