@@ -12,6 +12,14 @@
 #include <cmath>
 #include <stdexcept>
 namespace UnchartedUwp {
+static void ReadbackBarrier(vk::CommandBuffer command) {
+    const vk::MemoryBarrier2 barrier{
+        .srcStageMask=vk::PipelineStageFlagBits2::eAllCommands,
+        .srcAccessMask=vk::AccessFlagBits2::eMemoryWrite,
+        .dstStageMask=vk::PipelineStageFlagBits2::eAllCommands|vk::PipelineStageFlagBits2::eHost,
+        .dstAccessMask=vk::AccessFlagBits2::eMemoryRead|vk::AccessFlagBits2::eMemoryWrite|vk::AccessFlagBits2::eHostRead};
+    command.pipelineBarrier2(vk::DependencyInfo{.memoryBarrierCount=1,.pMemoryBarriers=&barrier});
+}
 template <typename T> static T ProbeCheck(vk::ResultValue<T>&& result) {
     if(result.result!=vk::Result::eSuccess) {
         std::fprintf(stderr,"Texture probe Vulkan error: %d\n",int(result.result));
@@ -88,7 +96,7 @@ static bool SampleProbe(const Vulkan::Instance& instance,Vulkan::Scheduler& sche
         cmd.pipelineBarrier2(vk::DependencyInfo{.imageMemoryBarrierCount=1,.pImageMemoryBarriers=&storage_barrier});
         const vk::BufferImageCopy copy{.imageSubresource={vk::ImageAspectFlagBits::eColor,0,0,1},.imageExtent={68,52,1}};
         cmd.copyImageToBuffer(stored.image,vk::ImageLayout::eTransferSrcOptimal,stored_readback.Handle(),copy);
-        Vulkan::Scheduler::RecordFullBarrier(cmd);
+        ReadbackBarrier(cmd);
     });
     scheduler.Finish();
     output.Invalidate(0,output.SizeBytes());
@@ -172,7 +180,7 @@ static bool CopyProbe(const Vulkan::Instance& instance,Vulkan::Scheduler& schedu
         barrier.newLayout=vk::ImageLayout::eTransferSrcOptimal;
         cmd.pipelineBarrier2(vk::DependencyInfo{.imageMemoryBarrierCount=1,.pImageMemoryBarriers=&barrier});
         cmd.copyImageToBuffer(*image,vk::ImageLayout::eTransferSrcOptimal,output.Handle(),downloads);
-        Vulkan::Scheduler::RecordFullBarrier(cmd);
+        ReadbackBarrier(cmd);
     });
     scheduler.Finish();
     output.Invalidate(0,output_size);
