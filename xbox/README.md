@@ -54,7 +54,8 @@ confirmado.
 | 0.6.2 | Medições do driver de tiling, registro de comandos, esperas PM4 e controle durante o boot | Driver de tiling retornou em 42 ms; quarta DispatchRecord não retornou; consulta do controle vazia |
 | 0.6.3 | Cópia de origem guest antes do lock de commit e controle verificado antes do boot | Quarta dispatch retornou em 36 ms; controle reconhecido; avançou até outro pipeline, que falhou com ErrorOutOfHostMemory |
 | 0.6.4 | Dozen com diagnóstico nativo de DXIL/D3D12 e estado/memória de pipelines | Build Windows e contratos passaram; teste Xbox pendente |
-| 0.6.5 | Leitura direta de texturas inteiras de um nivel, cache e testes de shader | Rejeicao DXIL reproduzida em SM 6.0; 80 pipelines convertidos e build completo passaram; Xbox pendente |
+| 0.6.5 | Leitura direta de texturas inteiras de um nivel, cache e testes de shader | Rejeicao DXIL reproduzida em SM 6.0; 80 pipelines convertidos e build completo passaram; logos confirmadas no Xbox, menu pendente |
+| 0.6.6 | Barreiras conservadoras do GoW3, protecao de Map e diagnostico de perda da GPU | Build e contratos Windows passaram; Xbox pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -213,6 +214,7 @@ cobre origem lazy, cruzamento de paginas, protecao antiga e destino read-only.
 Ainda e necessario confirmar se esse defeito explica o bloqueio do Xbox.
 O boot exige uma deteccao real do controle em ate cinco segundos; nenhuma
 conexao e fabricada. A lista inicial vazia do ultimo log deixou de ser ignorada.
+
 
 ## Diagnostico do driver na 0.6.4
 

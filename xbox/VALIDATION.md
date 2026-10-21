@@ -679,3 +679,30 @@ device. Generic scheduler loss also requests the driver report. This is
 failure handling, not device recovery or evidence that the menu is reached.
 
 Windows validation and Xbox 0.6.6 behavior remain pending below.
+
+
+## v0.6.6 Windows validation
+
+Code 961091ec81c07655c1eeea492c6efcdda5183c41;
+Actions run 39693331177 (renderer 119546077884).
+
+The actual Dozen command contract passed two injected Map failures and two
+successful command recordings (Fill and Update). EndCommandBuffer retained
+UNKNOWN on injected E_FAIL; no null write occurred. Explicit device status
+export was resolved/called. Legacy SM 6.0 reproduced the original shader
+rejection; all 80 lowered graphics variants compiled.
+
+Full renderer compile/link passed. Map guard passed 17 checks, diagnostic
+sink 29, integer emitter 6705, native preparation six tests, pad 193,
+overlay 31, boot trace 29, dialog 21, AudioOut 100 plus device failure,
+AJM 4648 with actual MP3 decode and ATRAC9 init. Guest page-fault regression,
+8242 swap checks with zero corruption, 32786 POSIX checks, and UWP import
+allowlist passed. APPX 0.6.6.0 signed. Separate CPU/graphics builds passed.
+
+The driver is built from the same Mesa pin; strict patch tests cover both
+pipeline and command sources. DLL SHA256: 9309911ae5dae7aebbd132bf466ac597f8538c6c7524617153d0fd61c3948191.
+The normal app leaves legacy-model and Map fault injection switched off.
+
+This validates compiler/contracts and failure handling on Windows. The
+conservative barriers' effect on Xbox device loss is unverified until a new
+console test. Logos were confirmed on 0.6.5; menu/gameplay remain pending.
