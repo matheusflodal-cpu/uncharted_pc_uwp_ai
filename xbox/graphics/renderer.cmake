@@ -111,3 +111,14 @@ target_compile_options(bbgpu PRIVATE /EHsc /Oy- "/FI${CMAKE_CURRENT_SOURCE_DIR}/
 target_link_libraries(bbgpu PUBLIC Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum
     tsl::robin_map GPUOpen::VulkanMemoryAllocator PkgConfig::XXHASH PkgConfig::SDL3
     PkgConfig::FFMPEG miniz::miniz Zydis::Zydis sirit WindowsApp)
+
+# Host-side shader contracts use the same production emitter and packaged ICD.
+add_executable(uncharted_integer_sample_contract ${UNCHARTED_ROOT}/tests/test_uwp_integer_sample.cpp)
+add_executable(uncharted_integer_driver_contract ${UNCHARTED_ROOT}/tests/test_uwp_integer_driver.cpp ${UNCHARTED_ROOT}/tests/test_uwp_integer_sample.cpp)
+target_compile_definitions(uncharted_integer_driver_contract PRIVATE UNCHARTED_INTEGER_TEST_NO_MAIN NOMINMAX WIN32_LEAN_AND_MEAN)
+foreach(integer_target uncharted_integer_sample_contract uncharted_integer_driver_contract)
+  target_include_directories(${integer_target} PRIVATE shadps4 ${UNCHARTED_DEPS}/vulkan-headers/include)
+  set_target_properties(${integer_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+  target_link_libraries(${integer_target} PRIVATE sirit kernel32)
+  target_compile_options(${integer_target} PRIVATE /EHsc)
+endforeach()

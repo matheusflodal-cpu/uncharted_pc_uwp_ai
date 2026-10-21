@@ -1,0 +1,22 @@
+UNCHARTED UWP 0.6.5 — TEXTURAS INTEIRAS
+
+Ainda nao ha imagem do jogo, menu ou gameplay confirmado. Nao inclui o jogo.
+O teste 0.6.4 identificou uma rejeicao do shader pelo validador DXIL:
+"sample_* instructions require resource ... UNORM, SNORM or FLOAT".
+A memoria registrada na falha era 2924/5120 MiB.
+
+1. Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+   VCLibs em Dependencies. Use o mesmo dump e o controle ligado.
+2. Selecione Uncharted 3 e tente iniciar.
+3. Se fechar, guarde loader.log e errors.log antes de reabrir o aplicativo.
+   Se continuar preto, aguarde ate cinco minutos apos a preparacao.
+
+O QUE MUDA
+O shader usa leitura direta de texel para texturas inteiras com um unico
+nivel e filtro por ponto. Preserva os bits inteiros, offsets, repeticao,
+espelhamento, clamp e bordas predefinidas. Outros casos mantem a validacao
+original e registram os parametros para investigar. A aplicabilidade ao
+shader do jogo precisa deste teste; o dump nao esta disponivel no build.
+O cache e versionado novamente e inclui os estados usados na conversao.
+O mesmo driver de diagnostico da 0.6.4 continua incluido.
+Nao precisa repetir os testes de som/botoes nem copiar o jogo novamente.

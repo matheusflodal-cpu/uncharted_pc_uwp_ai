@@ -47,6 +47,12 @@ def main():
     cxx = os.environ.get("CXX") or shutil.which("c++")
     if not cxx:
         raise SystemExit("C++20 compiler not found")
+    sirit=ROOT / "gpu/third_party/sirit"
+    sirit_sources=[sirit/"src/sirit.cpp",sirit/"src/stream.cpp",*sorted((sirit/"src/instructions").glob("*.cpp"))]
+    run(cxx,"-std=c++20","-O1","-Igpu/shadps4",f"-I{sirit}/include",f"-I{sirit}/src",
+        f"-I{sirit}/externals/SPIRV-Headers/include","tests/test_uwp_integer_sample.cpp",*sirit_sources,
+        "-o",OUT/"integer-sample-contract")
+    run(OUT/"integer-sample-contract")
     run(cxx, "-std=c++20", "-O2", "-Wall", "-Wextra", "-Werror",
         "xbox/platform/prepare_game.cpp", "xbox/platform/prepare_contract.cpp", "-o", OUT / "prepare-contract")
     run(cxx, "-std=c++20", "-O2", "-Wall", "-Wextra", "-Werror", "-pthread", "-Ixbox/platform",

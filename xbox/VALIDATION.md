@@ -543,3 +543,37 @@ These checks validate Windows builds/contracts, not an Xbox game boot.
 
 The new driver error channel and the result of the next game boot still
 require Xbox testing. No menu, game image or gameplay is confirmed.
+
+
+## Xbox 0.6.4 and bounded integer sample lowering in 0.6.5
+
+errors (6).log identifies DXIL validation rejection of sample.i32 in the
+fragment shader stage, same FS 0x81a0a982 / pipeline 0xf43a301791304559.
+Memory immediately before/after failure: 3065798656 / 3066449920 bytes,
+limit 5368709120 bytes. This failure is shader validation, not demonstrated
+RAM exhaustion. loader (9).log confirms the driver diagnostic callback.
+
+0.6.5 adds UWP-only integer sampling lowering for one-level point-filtered
+1D/2D/3D and 1D/2D-array views, excluding cube, anisotropy, custom borders
+and non-point filtering. Implicit/explicit/gradient samples share the same
+fetch since the sole view level is zero. Depth compare/gather and other
+cases retain the original shader/validation. Unknown cases log actual
+shader/image/sampler/view parameters and remain explicit failures.
+
+Coordinates preserve normalized addressing (the existing IR pass normalizes
+GCN unnormalized samples), floor before offsets, repeat and mirrored repeat,
+mirror-once, edge and predefined borders. Array layers round and clamp.
+Texel data stays signed/unsigned integer until the existing bitcast to IR
+float registers. No sample is replaced with a constant or omitted.
+
+The sampler raw words and integer view level count enter specialization;
+shader binary/meta and pipeline key versions are incremented. This prevents
+reusing a compiled one-level/wrap configuration after changing descriptors.
+
+Local numerical cases exercise the production coordinate template. Sirit
+contracts generate 80 signed/unsigned modules across dimensions/arrays/wrap
+modes and assert integer fetch replaces sampling. The Windows ICD contract
+first requires the old shader to reproduce a DXIL rejection, then requires
+all 80 lowered pipelines to compile through the exact packaged Dozen. This
+checks compiler acceptance, not GPU execution or rendered pixels. Windows
+and Xbox results remain pending until recorded below.

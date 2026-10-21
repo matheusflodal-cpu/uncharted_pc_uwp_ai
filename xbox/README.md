@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.4)
+## Teste atual (0.6.5)
 
-Veja [LEIA-ME-0.6.4.txt](LEIA-ME-0.6.4.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.5.txt](LEIA-ME-0.6.5.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -223,3 +223,16 @@ MiB de 5120 MiB, cerca de um segundo antes da parada; nao e uma medida
 do pico da chamada. A 0.6.4 recompila o mesmo Dozen com um callback de
 diagnostico limitado, conectado ao stderr do aplicativo, e registra estado
 e memoria por chamada. Nao altera flags de compilacao, shader ou validacao.
+
+
+## Texturas inteiras na 0.6.5
+
+O teste Xbox 0.6.4 identificou rejeicao DXIL de sample.i32 no shader
+0x81a0a982, pipeline 0xf43a301791304559, com memoria de 2924/5120 MiB.
+A 0.6.5 converte amostragem inteira por ponto em texelFetch quando a view
+tem um unico nivel. Preserva bits e enderecamento, incluindo repeticao,
+espelhamento, clamp, offsets e bordas predefinidas. Mips multiplos, filtros
+nao suportados, cubemaps e borda customizada mantem o caminho validado
+anterior e registram os parametros. A aplicabilidade ao shader real e o
+boot do jogo ainda dependem de teste Xbox. O cache de shaders/pipelines
+foi versionado novamente e os estados embutidos entram na especializacao.
