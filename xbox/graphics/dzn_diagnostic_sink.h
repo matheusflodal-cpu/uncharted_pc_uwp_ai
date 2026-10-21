@@ -1,0 +1,24 @@
+/* SPDX-License-Identifier: MIT
+ * Dozen-to-host diagnostics. Register once before Vulkan device creation;
+ * callback can run on concurrent compiler threads and must not call Vulkan.
+ */
+#ifndef UNCHARTED_DZN_DIAGNOSTIC_SINK_H
+#define UNCHARTED_DZN_DIAGNOSTIC_SINK_H
+#include <stdint.h>
+#include <stdio.h>
+typedef void (*DznUwpDiagnosticCallback)(const char *message);
+static DznUwpDiagnosticCallback dzn_uwp_sink;
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+void dznSetUwpDiagnosticCallback(DznUwpDiagnosticCallback callback) {
+    dzn_uwp_sink=callback;
+}
+static void dzn_uwp_report(const char *phase,uint32_t detail,const char *message) {
+    if(!dzn_uwp_sink) return;
+    char line[2048];
+    snprintf(line,sizeof(line),"Dozen diagnostic: phase=%.96s detail=0x%08x message=%.1600s",
+             phase?phase:"unknown",(unsigned)detail,message?message:"");
+    dzn_uwp_sink(line);
+}
+#endif

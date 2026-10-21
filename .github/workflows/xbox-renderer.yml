@@ -33,12 +33,18 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            xbox/scripts/patch-dozen-diagnostics.py
+            xbox/graphics/dzn_diagnostic_sink.h
+          sparse-checkout-cone-mode: false
       - name: Cache
         id: cache
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}\dozen
-          key: dozen-uwp-${{ env.MESA_COMMIT }}-msvc14.44
+          key: dozen-uwp-${{ env.MESA_COMMIT }}-msvc14.44-diagnostics-${{ hashFiles('xbox/scripts/patch-dozen-diagnostics.py', 'xbox/graphics/dzn_diagnostic_sink.h') }}
 
       - name: Checkout Mesa fork
         if: steps.cache.outputs.cache-hit != 'true'
@@ -63,6 +69,10 @@ jobs:
           Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
           Enter-VsDevShell -VsInstallPath $vs -DevCmdArguments '-arch=x64 -host_arch=x64 -vcvars_ver=14.44' -SkipAutomaticLocation | Out-Null
           $delayLoad = "['/DELAYLOAD:user32.dll', '/DELAYLOAD:gdi32.dll', '/DELAYLOAD:shell32.dll', '/DELAYLOAD:version.dll', 'delayimp.lib']"
+          python xbox/scripts/patch-dozen-diagnostics.py mesa --check
+          if($LASTEXITCODE) { throw 'Dozen diagnostic patch contract failed.' }
+          python xbox/scripts/patch-dozen-diagnostics.py mesa
+          if($LASTEXITCODE) { throw 'Dozen diagnostic patch failed.' }
           meson setup build mesa --backend=ninja -Dbuildtype=release -Dplatforms=windows -Dgallium-drivers= `
             -Dvulkan-drivers=microsoft-experimental -Dllvm=disabled -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dopengl=false `
             -Dgles1=disabled -Dgles2=disabled -Dspirv-tools=disabled -Dmicrosoft-clc=disabled -Dbuild-tests=false -Dvideo-codecs= `
@@ -132,6 +142,10 @@ jobs:
           key: renderer-vs2026-v1-${{ hashFiles('xbox/scripts/fetch-deps.py', 'xbox/scripts/graphics-dependencies.json', 'xbox/scripts/build-deps.ps1', 'xbox/scripts/boost-headers.py') }}
       - name: Compile and link Uncharted renderer
         run: ./xbox/scripts/build.ps1 -CompileRenderer -GraphicsProbe -DozenDirectory "$env:RUNNER_TEMP\dozen" -DxcDirectory "$env:RUNNER_TEMP\dxc"
+      - name: Verify native driver diagnostic sink
+        run: |
+          & ./xbox/.local/build/uncharted_dzn_diagnostic_contract.exe
+          if($LASTEXITCODE) { throw "Dozen diagnostic sink contract failed: $LASTEXITCODE" }
       - name: Verify native preparation against original Python tools
         run: |
           $env:PYTHONPATH="$env:GITHUB_WORKSPACE/tests;$env:GITHUB_WORKSPACE/scripts"
@@ -177,7 +191,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Uncharted-UWP-renderer-integration
-          path: xbox/.local/packages/UnchartedUwpProbe-0.6.3.0.zip
+          path: xbox/.local/packages/UnchartedUwpProbe-0.6.4.0.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

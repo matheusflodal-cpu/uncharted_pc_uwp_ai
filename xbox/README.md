@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.3)
+## Teste atual (0.6.4)
 
-Veja [LEIA-ME-0.6.3.txt](LEIA-ME-0.6.3.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.4.txt](LEIA-ME-0.6.4.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -52,7 +52,8 @@ confirmado.
 | 0.6 | AudioOut via XAudio2, AJM ATRAC9/MP3 e teste de som | Tom ouvido no Xbox; boot abriu áudio/AJM e chegou a shaders reais; watchdog de 90 s encerrou |
 | 0.6.1 | Medições de compilação, CPU/RAM e mensagens do jogo; teste de boot de 5 min | 9 draws/4 dispatches estáveis, zero flip do jogo, aviso de controle; watchdog de 300 s |
 | 0.6.2 | Medições do driver de tiling, registro de comandos, esperas PM4 e controle durante o boot | Driver de tiling retornou em 42 ms; quarta DispatchRecord não retornou; consulta do controle vazia |
-| 0.6.3 | Cópia de origem guest antes do lock de commit, controle verificado antes do boot e escopos internos de dispatch | Pendente |
+| 0.6.3 | Cópia de origem guest antes do lock de commit e controle verificado antes do boot | Quarta dispatch retornou em 36 ms; controle reconhecido; avançou até outro pipeline, que falhou com ErrorOutOfHostMemory |
+| 0.6.4 | Dozen com diagnóstico nativo de DXIL/D3D12 e estado/memória de pipelines | Pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -211,3 +212,14 @@ cobre origem lazy, cruzamento de paginas, protecao antiga e destino read-only.
 Ainda e necessario confirmar se esse defeito explica o bloqueio do Xbox.
 O boot exige uma deteccao real do controle em ate cinco segundos; nenhuma
 conexao e fabricada. A lista inicial vazia do ultimo log deixou de ser ignorada.
+
+## Diagnostico do driver na 0.6.4
+
+O erro novo ocorre no pipeline 0xf43a301791304559 (FS 0x81a0a982 e VS
+0xf585649d). O Dozen fixado converte falhas de nir_to_dxil, validacao DXIL
+e CreatePipelineState para VK_ERROR_OUT_OF_HOST_MEMORY. Portanto esse
+retorno sozinho nao prova esgotamento de RAM. O ultimo registro foi 2553
+MiB de 5120 MiB, cerca de um segundo antes da parada; nao e uma medida
+do pico da chamada. A 0.6.4 recompila o mesmo Dozen com um callback de
+diagnostico limitado, conectado ao stderr do aplicativo, e registra estado
+e memoria por chamada. Nao altera flags de compilacao, shader ou validacao.

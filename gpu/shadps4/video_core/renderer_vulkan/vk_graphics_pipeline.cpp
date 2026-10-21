@@ -17,6 +17,11 @@
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 
+#ifdef UNCHARTED_UWP
+extern "C" uint64_t uncharted_uwp_app_memory_usage();
+extern "C" uint64_t uncharted_uwp_app_memory_limit();
+#endif
+
 namespace Vulkan {
 
 using Shader::Backend::SPIRV::AuxShaderType;
@@ -440,12 +445,45 @@ GraphicsPipeline::GraphicsPipeline(
         .layout = *pipeline_layout,
     };
 
+#ifdef UNCHARTED_UWP
+    const auto diagnostic_hash=std::hash<GraphicsPipelineKey>{}(key);
+    const auto report_pipeline=[&](const char* phase,vk::Result result) {
+        std::fprintf(stderr,"UWP pipeline %s: key=0x%llx result=%d shaders=%s stages=%zu topology=%u geometry_expansion=%u attachments=%u depth_format=%u stencil_format=%u samples=%u sample_shading=%u depth_clamp=%u depth_clip=%u logic_enable=%u logic=%u vertex_attributes=%zu vertex_bindings=%zu dynamic_states=%zu preloading=%u\n",
+            phase,static_cast<unsigned long long>(diagnostic_hash),static_cast<int>(result),debug_str.c_str(),shader_stages.size(),
+            static_cast<unsigned>(topology),unsigned(geometry_expansion),key.num_color_attachments,
+            static_cast<unsigned>(pipeline_rendering_ci.depthAttachmentFormat),static_cast<unsigned>(pipeline_rendering_ci.stencilAttachmentFormat),
+            static_cast<unsigned>(sdata.multisampling.rasterizationSamples),unsigned(sdata.multisampling.sampleShadingEnable),
+            unsigned(raster_chain.get().depthClampEnable),unsigned(key.depth_clip_enable),unsigned(color_blending.logicOpEnable),
+            static_cast<unsigned>(color_blending.logicOp),sdata.vertex_attributes.size(),sdata.vertex_bindings.size(),dynamic_states.size(),unsigned(preloading));
+        try {
+            std::fprintf(stderr,"UWP pipeline memory %s: usage=%llu limit=%llu bytes\n",phase,
+                static_cast<unsigned long long>(uncharted_uwp_app_memory_usage()),static_cast<unsigned long long>(uncharted_uwp_app_memory_limit()));
+        } catch(...) { std::fprintf(stderr,"UWP pipeline memory %s: query unavailable\n",phase); }
+        for(u32 i=0;i<key.num_color_attachments;++i) {
+            const auto& a=attachments[i];
+            std::fprintf(stderr,"  attachment=%u format=%u blend=%u color=%u/%u/%u alpha=%u/%u/%u write_mask=0x%x\n",i,
+                static_cast<unsigned>(color_formats[i]),unsigned(a.blendEnable),static_cast<unsigned>(a.srcColorBlendFactor),
+                static_cast<unsigned>(a.dstColorBlendFactor),static_cast<unsigned>(a.colorBlendOp),static_cast<unsigned>(a.srcAlphaBlendFactor),
+                static_cast<unsigned>(a.dstAlphaBlendFactor),static_cast<unsigned>(a.alphaBlendOp),unsigned(static_cast<VkColorComponentFlags>(a.colorWriteMask)));
+        }
+        for(const auto& a:sdata.vertex_attributes)
+            std::fprintf(stderr,"  attribute location=%u binding=%u format=%u offset=%u\n",a.location,a.binding,static_cast<unsigned>(a.format),a.offset);
+        for(const auto& b:sdata.vertex_bindings)
+            std::fprintf(stderr,"  vertex_binding=%u stride=%u rate=%u\n",b.binding,b.stride,static_cast<unsigned>(b.inputRate));
+        std::fflush(stderr);
+    };
+    static std::atomic<unsigned> reported{0};
+    if(reported.fetch_add(1)<32) report_pipeline("before",vk::Result::eSuccess);
+#endif
     auto [pipeline_result, pipe] = [&] {
 #ifdef UNCHARTED_UWP
-        UnchartedBootTrace::Scope driver_trace(UnchartedBootTrace::Kind::DriverGraphics,0,reinterpret_cast<uintptr_t>(this));
+        UnchartedBootTrace::Scope driver_trace(UnchartedBootTrace::Kind::DriverGraphics,diagnostic_hash,reinterpret_cast<uintptr_t>(this));
 #endif
         return device.createGraphicsPipelineUnique(pipeline_cache, pipeline_info);
     }();
+#ifdef UNCHARTED_UWP
+    if(pipeline_result!=vk::Result::eSuccess) report_pipeline("failed",pipeline_result);
+#endif
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
                vk::to_string(pipeline_result));
     pipeline = std::move(pipe);

@@ -28,6 +28,23 @@ static void Check(vk::Result result, const char* operation) {
 void InitializeDriver() {
     static HMODULE driver = LoadPackagedLibrary(L"vulkan_dzn.dll",0);
     if (!driver) throw std::runtime_error("Cannot load packaged Dozen driver");
+    // Mesa has its own static CRT, so its stderr need not share our redirected
+    // FILE. Register a direct sink before any Vulkan instance/worker is created.
+    static const bool diagnostic_registered=[&] {
+        using SetSink=void (*)(void (*)(const char*));
+        auto set=reinterpret_cast<SetSink>(GetProcAddress(driver,"dznSetUwpDiagnosticCallback"));
+#ifdef UNCHARTED_LINK_RENDERER
+        if(!set) throw std::runtime_error("Packaged Dozen diagnostic entry point missing");
+#endif
+        if(set) {
+            set([](const char* message) {
+                if(message) { std::fprintf(stderr,"%s\n",message);std::fflush(stderr); }
+            });
+            std::puts("Dozen diagnostic callback registered");
+        }
+        return true;
+    }();
+    (void)diagnostic_registered;
     auto proc=reinterpret_cast<PFN_vkGetInstanceProcAddr>(GetProcAddress(driver,"vk_icdGetInstanceProcAddr"));
     if (!proc) throw std::runtime_error("Dozen ICD entry point missing");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(proc);

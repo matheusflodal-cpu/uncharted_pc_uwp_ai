@@ -480,3 +480,45 @@ was additionally syntax-checked with the Windows RPC small macro defined.
 This validates the memory correction and package on Windows. Real controller
 readiness and the effect on the blocked Xbox DispatchRecord remain unverified
 until a new console boot. No game image, menu or gameplay is established.
+
+## Xbox 0.6.3: prior block passed; new graphics-pipeline failure
+
+loader (8).log: real input ready in 94 ms, guest pad info connected=1 and
+one successful read. The fourth DispatchRecord (HLE 0x6a6422a9) returned in
+36 ms; its 9 MiB backing write returned in 34 ms. Later work continued. At
+5.024 s the snapshot showed 11 draws, 9 dispatch calls and zero flip requests.
+Memory was 2553/5120 MiB. The final pipeline creation started at 5.963 s.
+errors (4).log and errors (5).log are byte-identical: pipeline key
+0xf43a301791304559, FS 0x81a0a982 / VS 0xf585649d, then
+ErrorOutOfHostMemory and a library assertion. No game image was confirmed.
+
+The pinned Dozen dzn_pipeline.c maps nir_to_dxil failure, DXIL validation
+failure and failed D3D12 CreatePipelineState to that same Vulkan result.
+There is no native HRESULT or validation detail in the attached logs. The
+last memory sample is not an allocation peak and cannot distinguish causes.
+
+## v0.6.4 driver error channel
+
+A strict, hash-checked build-time patch to the same Mesa pin adds an MIT
+callback sink in dzn_pipeline.c. It reports NIR-to-DXIL failures, DXIL validator
+text, pipeline host-allocation failure, native HRESULT and device-removed
+reason for failed graphics CreatePipelineState, plus final graphics VkResult.
+All original validation, return values and cleanup remain intact. It does
+not enable experimental mode, change shaders/features or retry failed work.
+The host registers the callback before Vulkan initialization; this bypasses
+the separate static-CRT stderr of Mesa. Shader compiler worker threads may
+call it concurrently. Text is bounded and forwarded directly to errors.log.
+
+The driver cache key includes both patch and sink hashes. A missing callback
+entry point is an explicit startup error in the full renderer package. The
+basic graphics probe still accepts its older uninstrumented driver.
+The app records up to 32 pre-call pipeline states and every failure state,
+including shader hashes, formats, blend/input/raster state and app memory
+usage/limit. Memory values are samples around the call, not exact peaks; a
+failed WinRT query is reported as unavailable. No Vulkan queries are made
+from the diagnostic callback.
+
+Local tests cover exact source-pin/context checks, rejection of changed or
+already patched source, and native-code formatting, long-message bounds,
+disabled callback and concurrent sink calls. Windows driver rebuild and
+Xbox results are pending until recorded below.

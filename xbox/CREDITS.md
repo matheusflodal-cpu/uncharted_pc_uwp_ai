@@ -73,3 +73,10 @@ They do not implement or draw the guest's message UI.
 The v0.6.2 diagnostic additions measure the existing shadPS4/bbport PM4 queue,
 tiling pipeline and draw recording paths. The command semantics and existing
 native controller mapping are retained; the new trace code is GPL-2.0-or-later.
+
+The v0.6.4 Dozen error callback is an MIT-licensed build-time adaptation of
+Cosmo/mesa_ai_slop_version dzn_pipeline.c at the same pinned commit
+82804960ac7919b24dbf27d1cec2b4d637573731. Original MIT notices are retained.
+The added sink reports native failures without changing driver validation or
+error handling. See xbox/scripts/patch-dozen-diagnostics.py and
+xbox/graphics/dzn_diagnostic_sink.h.
