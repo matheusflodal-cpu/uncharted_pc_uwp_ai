@@ -1,4 +1,4 @@
-# Validation of the first UWP diagnostic milestone
+# Validation of the UWP adaptation
 
 Environment: Linux x86-64, system C compiler and Python. No game dump was used.
 
@@ -35,9 +35,8 @@ Windows CI validation also **passed**:
 
 Explicitly **not validated**:
 
-- Installation or execution of the UWP package on Xbox.
 - Memory pressure under the Xbox's actual OS-enforced AppContainer budget.
-- Uncharted's real executable initialization, any graphics, audio, input or gameplay.
+- Uncharted's real executable initialization, game rendering, audio, input or gameplay.
 - Frame rate, resolution, stability or progress through any of the three games.
 
 The contract ran in a Windows desktop harness with a simulated 5 GiB policy budget,
@@ -56,8 +55,8 @@ establish a sufficient RAM budget or playable performance for Uncharted.
 
 An optional `-GraphicsProbe` build enables a standalone Vulkan/Dozen color
 attachment and shared D3D12/CoreWindow presentation test. It does not link the
-Uncharted guest renderer. Xbox execution remains pending until a tester supplies
-its new log. This milestone must not be described as playable.
+Uncharted guest renderer. The tester subsequently supplied the successful Xbox
+log summarized below. This milestone must not be described as playable.
 
 ## Xbox graphics bridge reported by the tester
 
@@ -66,3 +65,21 @@ shared presentation image, `CoreWindow first frame presented`, and exit 0.
 Dynamic rendering and synchronization2 are available; bufferDeviceAddress and
 sparseBinding are not. This validates presentation of the probe attachment,
 not guest shaders, textures, game rendering, or sustained throughput.
+
+## Renderer integration 0.3 — Windows build validated
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39538299760
+Code commit: `ebf15e89a42b52f7d13d85087316dfcb49335b42`.
+
+- clang-cl 22.1.3 compiled and linked the Uncharted renderer into the UWP host.
+- Native-resolution backends replace unsupported temporal upscalers and frame generation.
+- The SDL runtime is omitted; shared event declarations remain header-only.
+- ImGui's desktop shell/clipboard/IME defaults are disabled.
+- The desktop memory contract passed: 8242 checks, zero corruptions.
+- Import verification passed against WindowsApp.lib, Store CRT and bundled DLLs.
+- MakeAppx and SHA-256 signing of `UnchartedUwpProbe_0.3.0.0_x64.appx` passed.
+- The portable CPU/I/O regression checks and 38 Python tests passed again.
+
+The new texture/shader probes have NOT run on the Xbox yet. Their GPU readbacks,
+the actual guest renderer initialization, game shaders, audio, input and
+playability remain unvalidated. Compilation/signing do not establish them.

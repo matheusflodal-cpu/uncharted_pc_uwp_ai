@@ -1,162 +1,105 @@
-# Uncharted UWP — primeira etapa de desenvolvimento
+# Uncharted para Xbox UWP — desenvolvimento experimental
 
-**Estado: pacote de diagnóstico de CPU e memória compilado e assinado. Não é um port jogável.**
-Base: Uncharted for Windows **v0.3.6**, commit
+**Ainda não é um port jogável.** Não inclui executáveis, dados ou shaders do jogo.
+Base: SuperMedo/uncharted_pc v0.3.6, commit
 `b787c1068c3a9a9ba3ec43dd8086af2bf7d35c7d`.
-Referência de Xbox: Cosmo/gow3_xbox
-`d0975c91d827045724230476c1527cd38afd72f4`.
+A adaptação usa componentes de Cosmo/gow3_xbox
+`d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## O que foi implementado
+## Etapas
 
-- Entrada UWP x64, manifesto com identidade própria `UnchartedUwpProbe` e logs em LocalState.
-- Teste de memória executável com ABI System V, usado pelo código de PS4.
-- Backend de memória esparsa, aliases físicos, proteções de páginas e paginador em disco,
-  adaptados do GoW3 para Xbox, com os respectivos testes de contrato.
-- Adaptadores de arquivos UWP e transferência por buffer temporário para páginas sujeitas a swap.
-- Preservação da correção de leituras incompletas do Uncharted 0.3.6.
-- Preparação no PC dos executáveis de Uncharted 1, 2 ou 3 usando o linker original.
-- Workflow de GitHub Actions para **compilar um pacote de diagnóstico** no Windows.
+| Versão | Conteúdo | Validação no Xbox |
+| --- | --- | --- |
+| 0.1 | CPU, memória sob demanda, aliases, proteções e swap | Log do testador: resultado 0; 8242 checagens, zero corrupção |
+| 0.2 | Vulkan/Dozen → imagem compartilhada D3D12 → CoreWindow | Log do testador: primeiro quadro apresentado em 1280×720; resultado 0 |
+| 0.3 | Renderizador ligado ao host; testes sintéticos de shaders e texturas | Pendente |
 
-As funções de GPU, áudio e controle do visitante continuam explicitamente sem implementação
-neste alvo. Imports de PS4 não implementados retornam endereço zero ao resolvedor e o
-carregador os identifica; não há implementações que finjam executar esses serviços.
+Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
+Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
+carregador. Upscalers temporais e geração de quadros estão desabilitados.
+Não foram validados shaders de um jogo real, jogabilidade, uso de RAM sob carga
+real ou desempenho em nenhum dos três Uncharted.
 
-## O que foi verificado
+## Testar no Xbox pelo celular
 
-O carregador nativo foi compilado no Linux com os adaptadores de serviços de diagnóstico.
-Passaram os 14 testes originais de executáveis sintéticos, cobrindo execução de código,
-relocações, bibliotecas nativas, metadados inválidos e imports ausentes. Também passaram
-os testes de leitura/escrita por buffer com leituras parciais injetadas, os testes de arquivos
-de mod/salvamento e os testes Python indicados em `VALIDATION.md`.
+1. Extraia o ZIP do pacote no celular.
+2. No Device Portal do Xbox Series S/X em Modo de Desenvolvedor, use Add/Adicionar
+   e selecione o `.appx` principal.
+3. Caso seja solicitado, inclua o `.appx` do framework VCLibs em `Dependencies`.
+4. Abra **Uncharted UWP Diagnostic**. Não precisa copiar o jogo para este teste.
+5. Recupere `LocalState/loader.log` e `errors.log` pelo Device Portal.
 
-**A compilação Windows, a verificação de imports UWP, o empacotamento e a assinatura passaram no Actions.**
-O teste adicional das APIs de memória passou em um executável de diagnóstico no Windows desktop:
-8.242 checagens de integridade, zero corrupção, e recuperação dos dados após paginação em disco.
-Esse executável usa o mesmo backend de memória, com um orçamento simulado de 5 GiB; ele não
-impõe o limite real de um AppContainer e não substitui o teste no console.
-**Ainda não foi instalado no Xbox nem executado com os jogos reais.**
-Execução verificada: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39531180717.
+O app usa a identidade própria `UnchartedUwpProbe` e não substitui o GoW3.
+Guarde os logs anteriores antes de rodar: cada execução reescreve os logs.
 
-## Compilar com GitHub Actions
+Na versão 0.3, a execução padrão testa cópias de texturas RGBA e BC1/BC3,
+linhas com padding, níveis mip, camadas, conversão do layout em blocos de texturas PS4,
+amostragem por shader e escrita em storage images. Compara os resultados da
+GPU com padrões conhecidos na CPU. Se tudo passar, apresenta o quadro azul.
+O log esperado contém `Renderer texture/shader self-test: PASS`,
+`CoreWindow PRESENTED` e `Diagnostic finished: 0`.
+Um resultado 0 de outro modo não comprova que esses testes passaram.
 
-1. Faça um fork de https://github.com/Supermedo/uncharted_pc na sua conta.
-2. Aplique esta alteração sobre a tag `v0.3.6`, numa branch `xbox/uwp-v0.3.6`.
-   O arquivo `.patch` entregue com o código contém a alteração completa.
-   Em um clone na tag correta: `git am /caminho/uncharted-uwp-diagnostic.patch`.
-3. Envie essa branch ao seu fork. O workflow **Xbox CPU diagnostic** executa no push.
-4. Se necessário, habilite Actions no fork. Também é possível executar manualmente em
-   **Actions → Xbox CPU diagnostic → Run workflow**, selecionando essa branch.
-5. Uma compilação que passar publica o artefato `Uncharted-UWP-CPU-diagnostic`.
-   Em caso de falha, use o log do primeiro passo com erro para a próxima correção.
+## Selecionar o modo por run.txt
 
-O workflow usa `windows-2022`, SDK do Windows, clang-cl, CMake, Ninja e winpthreads UCRT
-com versão e SHA-256 fixos. A etapa de empacotamento verifica os imports do executável e da DLL
-contra WindowsApp.lib antes de produzir o `.appx`. Certificados de teste são gerados durante
-a compilação, com publisher separado do GoW3; não há chave privada compartilhada no projeto.
-Para atualizações mantendo a mesma identidade de assinatura, forneça um certificado próprio
-a `package.ps1` pelos parâmetros `CertificatePath` e `CertificatePassword`.
+O arquivo é opcional e fica em `LocalState/run.txt`.
 
-Este alvo não depende dos submódulos gráficos. Eles continuam referenciados no repositório
-original e serão necessários quando o renderizador real for integrado.
+| Linha 1 | Comportamento |
+| --- | --- |
+| Ausente ou `renderer` | Na versão 0.3, executa os testes de texturas/shaders e apresentação |
+| `graphics` | Na 0.2, apresentação; na 0.3, testes completos de texturas/shaders e apresentação |
+| `memory` | Repete o diagnóstico de CPU/memória/swap |
+| `imports` | Lista imports ausentes de um executável preparado |
+| `boot` | Tenta iniciar um executável preparado; na 0.3 o renderizador está ligado, mas serviços ainda faltam |
 
-## Testar a primeira compilação
+Para `imports` ou `boot`, a linha 2 contém a pasta do dump original e a linha 3
+seleciona `1`, `2` ou `3`. Esses modos exigem preparação privada no PC:
 
-Instale o `.appx` e a dependência VCLibs pelo Device Portal do Xbox Series S/X em Developer
-Mode. Configure o tipo como **Game** para o orçamento de memória correspondente.
+```sh
+python xbox/scripts/prepare-game.py --help
+```
 
-Ao abrir sem `run.txt`, o aplicativo executa os testes de memória e mostra um diálogo
-com o resultado. Uma janela sem renderização durante o teste é esperada nesta etapa.
-O watchdog encerra o diagnóstico depois de 60 segundos se ele não terminar.
+Use o script com seu próprio dump descriptografado. Ele usa o linker original e
+produz `Prepared/uN/boot-linked.bin` e `content.bin`. Copie a pasta `Prepared`
+para `LocalState`. O script rejeita saídas existentes ou dentro do dump; não
+modifica os dados originais. A preparação não comprova que o jogo iniciará.
+Há um watchdog de 60 segundos nos modos experimentais do host.
 
-Pelo explorador de arquivos do Device Portal, recupere em **LocalState**:
+## Compilar
 
-- `loader.log`: etapas, resultado e estatísticas de memória/swap.
-- `errors.log`: mensagens de falha.
-
-O log deve indicar `Executable System V smoke: PASS (42)` e os resultados dos testes de
-memória. Qualquer código diferente de zero exige investigação; instalação bem-sucedida
-não comprova memória funcionando, e memória funcionando não comprova gameplay.
-
-## Diagnóstico de imports com seu dump
-
-Prepare os arquivos no PC com Python 3.12 ou superior:
+É necessário Windows, Visual Studio com C++, SDK do Windows, clang-cl, Python
+3.12 e Ninja. Para o renderizador, também é usado MSYS2 com make/diffutils/zstd.
+As dependências são preparadas em `xbox/.local/deps`; não são dados do jogo.
 
 ```powershell
-python xbox/scripts/prepare-game.py "D:\MinhaCollection" --game 1 --out "D:\Preparados\u1"
+python -m pip install ninja==1.11.1.4 zstandard==0.23.0
+./xbox/scripts/build.ps1
+./xbox/scripts/package.ps1
 ```
 
-Use `--game 2` ou `--game 3` para os outros executáveis. O script não altera o dump
-e recusa uma pasta de saída dentro dele ou uma pasta de saída já existente.
-O dump precisa estar descriptografado; este projeto não inclui ferramentas de descriptografia.
+Isso gera o diagnóstico básico de CPU. Para a ponte gráfica, adicione
+`-GraphicsProbe -DozenDirectory <pasta-do-Dozen> -DxcDirectory <pasta-do-DXC>`.
+Para ligar o renderizador, adicione também `-CompileRenderer`.
+`build-deps.ps1` prepara FFmpeg, glslang e os headers necessários.
 
-No Device Portal, envie **somente de forma privada** `boot-linked.bin` e `content.bin` para
-`LocalState/Prepared/u1/` (ou `u2`, `u3`). Copie a Collection completa para um USB em
-`E:\dumps\Uncharted`. Não inclua arquivos de jogo no repositório, nos workflows ou em releases.
+Workflows do repositório:
 
-Crie `LocalState/run.txt` com estas três linhas, sem aspas:
+- **Xbox CPU diagnostic**: compila o diagnóstico e testa o backend de memória no Windows.
+- **Xbox graphics build**: compila Dozen e assina a ponte gráfica 0.2.
+- **Xbox renderer integration**: compila Dozen, as dependências e o renderizador;
+  testa o contrato de memória, verifica imports UWP e assina o pacote 0.3.
 
-```text
-imports
-E:\dumps\Uncharted
-1
+A existência do workflow não significa que sua execução passou: confira o
+resultado no Actions. Somente um pacote que passar por essas etapas deve ser
+entregue para o próximo teste no console. As versões de Mesa, DXC e demais
+fontes estão fixadas nos scripts/workflows. Veja `CREDITS.md` e `VALIDATION.md`.
+
+## Verificações portáveis
+
+```sh
+python xbox/scripts/verify-portable.py
 ```
 
-O modo `imports` examina quais chamadas ainda estão ausentes e retorna **20** quando
-encontra alguma, o que é esperado neste estágio sem renderizador. Esse inventário
-não inicializa nem joga o título. `memory` na primeira linha repete os testes de memória.
-O modo de desenvolvimento `boot` tenta executar a inicialização da CPU até a primeira
-chamada ausente ou erro; ele não tem gráficos, áudio nem controle e não é um modo jogável.
-
-## Próximas etapas, em ordem
-
-1. Validar no Xbox os testes de memória/aliases/paginação que já passaram no Windows desktop.
-2. Integrar o renderizador **do Uncharted** com CoreWindow e Mesa/Dozen, preservando suas
-   correções de shaders e sincronização; os dois renderizadores não são intercambiáveis.
-3. Conectar controles, áudio, vídeo, salvamento e suspensão/retomada.
-4. Testar cada jogo e medir memória/FPS em fases reais. Swap não remove a necessidade
-   de manter código, pilhas e recursos ativos de GPU residentes na memória.
-
-Veja `CREDITS.md` para autoria e licenças. Nenhum desempenho, resolução ou conclusão dos
-jogos no Xbox foi demonstrado por esta adaptação.
-
-## Experimental graphics bridge probe (0.2)
-
-The `Xbox graphics build` workflow builds the pinned Mesa/Dozen fork and a
-signed graphics probe. On Windows, use `build.ps1 -GraphicsProbe
--DozenDirectory <folder-containing-vulkan_dzn.dll-and-MIT> -DxcDirectory
-<extracted-DXC-folder>`, then `package.ps1`. The manifest version becomes 0.2.0.0.
-
-On launch, with no `run.txt`, this build displays a blue frame through
-Vulkan -> a shared D3D12 image -> the Xbox CoreWindow. The success dialog may
-cover part of that image. Retrieve `LocalState/loader.log` and `errors.log`.
-The expected final log includes `CoreWindow first frame presented`,
-`CoreWindow PRESENTED`, and `Diagnostic finished: 0`.
-If an existing `run.txt` selects another mode, rename it or put `graphics` on
-its first line. Put `memory` there to rerun the previous memory diagnostic.
-The CPU-only imports/boot modes are unchanged. No game graphics or gameplay
-are implemented by this probe.
-
-Install through Xbox Device Portal like version 0.1, including the VCLibs
-framework if it is not already installed. No PC is needed to run the test.
-The package uses the same diagnostic app identity; keep your previous logs
-before installing. Compiling and signing alone do not validate the Xbox GPU.
-
-## Renderer integration (0.3, experimental)
-
-`build.ps1 -CompileRenderer -GraphicsProbe -DozenDirectory <Dozen folder>
--DxcDirectory <DXC folder>` builds and links the native Uncharted renderer.
-The `Xbox renderer integration` workflow prepares its dependencies, verifies
-imports and signs the package. See its Actions result for actual build status.
-
-With no run.txt, or with `renderer` or `graphics` on line 1, it tests GPU texture
-copies (including BC1/BC3), padded rows, layers/mips, PS4 1D detiling, sampling,
-and storage-image writes against CPU reference data. A successful test then
-presents the blue frame. Send both loader.log and errors.log; exit 0 without
-`Renderer texture/shader self-test: PASS` is not proof of this milestone.
-
-This build is still a diagnostic. It does not establish that Uncharted starts
-or runs. The optional prepared-dump `boot` mode links the renderer; audio,
-controller and online guest APIs remain unavailable. Real guest shaders and
-playability remain unvalidated. Native resolution only; temporal upscalers and
-frame generation are disabled. The earlier Xbox 0.2 log validated presentation
-but not shader execution or game textures.
+Os 38 testes Python, os testes C de I/O paginado e o carregador sintético
+passaram no Linux. Eles cobrem regressões de CPU/arquivos e não validam o
+renderizador UWP ou a execução do jogo.
