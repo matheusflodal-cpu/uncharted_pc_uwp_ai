@@ -141,5 +141,20 @@ initialization on UWP. Desktop RegisterLib retains initialization then registrat
 
 A Windows contract links the real renderer and CPU resolver and checks those
 65 imports without a CoreWindow, presenter or device. Unknown/data imports and
-unimplemented guest audio/input must remain unresolved. Windows build validation
-and the next Xbox diagnostic are pending at the time of this source change.
+unimplemented guest audio/input must remain unresolved. Windows build validation is recorded below; the next Xbox diagnostic is pending.
+
+### Windows pipeline passed
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39626279682
+Code: `67456251d507f3bbb87c949c01ed9a3f29fced66`.
+
+- `Graphics import contract: checked=65 missing=0 window=none`.
+- All six native preparation/Python parity methods passed on Windows.
+- Memory backend: 8242 checks, zero corruption, result 0.
+- Active package imports verified as UWP APIs, Store CRT or bundled dependencies.
+- MakeAppx and SHA-256 signing of the 0.4.1.0 APPX passed.
+- Linux portable CPU/I/O coverage and all 44 Python tests passed.
+
+The expected reduction to 59 missing imports is specific to the supplied
+Uncharted 3 executable; it remains to be confirmed on Xbox. This correction
+does not implement audio/input/network APIs or validate graphical guest calls.
