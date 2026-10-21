@@ -597,3 +597,38 @@ the app never calls it and normal adapter model selection is preserved.
 This tests an older compiler target, not a claimed match for every Xbox
 capability. Validation remains enabled. The isolated compiler check runs
 before the full renderer build, so shader test failures return sooner.
+
+
+## v0.6.5 Windows validation
+
+Code 965f526f5146e3122881b1ff02237c58829cd1dd; Actions run
+39689740418, renderer job 119534171463.
+
+The isolated graphics compiler contract preloaded packaged DXIL/DXC,
+registered the diagnostic sink and selected the host-only SM 6.0 target.
+The original implicit integer fragment sample was rejected by DXIL;
+all 80 lowered signed/unsigned graphics pipelines compiled. Variants cover
+1D/2D/3D, 1D/2D arrays, eight addressing modes, predefined borders and
+signed constant offsets. No lowered pipeline produced a validator failure.
+This reproduces the rejection class with a legacy target; it is not a
+claim that the software adapter matches all Xbox capabilities.
+
+Full renderer compile/link passed. The final emitter contract passed 6705
+checks and the diagnostic sink 29. Native preparation passed six tests;
+pad 193, overlay 31, boot trace 29, dialog 21, AudioOut 100 plus device
+failure, AJM 4648 with actual MP3 decode and ATRAC9 init all passed.
+Memory passed the guest-source page-fault regression, 8242 swap checks with
+zero corruption and 32786 POSIX checks. UWP imports passed the allowlist;
+APPX 0.6.5.0 was signed. Separate CPU and basic graphics builds passed.
+
+Dozen was rebuilt from the same pinned source with the strict diagnostic
+patch. DLL SHA256:
+d48984f8315fd2343ecc6e7268bed0be9d49e81f0dab4d97cb7e214568ce7b3b.
+Both diagnostic exports are present. The shader-model setter defaults off;
+the app never calls it and uses the actual adapter model. Validation remains
+active on normal and diagnostic paths.
+
+This checks compiler acceptance and scalar addressing, not rendered pixels
+or an Xbox game boot. The real FS texture/sampler parameters remain unknown
+until the next console test; eligibility is explicitly logged. No game
+image, menu or gameplay is established.
