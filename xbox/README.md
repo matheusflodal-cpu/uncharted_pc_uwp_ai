@@ -118,3 +118,25 @@ chamada ausente ou erro; ele não tem gráficos, áudio nem controle e não é u
 
 Veja `CREDITS.md` para autoria e licenças. Nenhum desempenho, resolução ou conclusão dos
 jogos no Xbox foi demonstrado por esta adaptação.
+
+## Experimental graphics bridge probe (0.2)
+
+The `Xbox graphics build` workflow builds the pinned Mesa/Dozen fork and a
+signed graphics probe. On Windows, use `build.ps1 -GraphicsProbe
+-DozenDirectory <folder-containing-vulkan_dzn.dll-and-MIT> -DxcDirectory
+<extracted-DXC-folder>`, then `package.ps1`. The manifest version becomes 0.2.0.0.
+
+On launch, with no `run.txt`, this build displays a blue frame through
+Vulkan -> a shared D3D12 image -> the Xbox CoreWindow. The success dialog may
+cover part of that image. Retrieve `LocalState/loader.log` and `errors.log`.
+The expected final log includes `CoreWindow first frame presented`,
+`CoreWindow PRESENTED`, and `Diagnostic finished: 0`.
+If an existing `run.txt` selects another mode, rename it or put `graphics` on
+its first line. Put `memory` there to rerun the previous memory diagnostic.
+The CPU-only imports/boot modes are unchanged. No game graphics or gameplay
+are implemented by this probe.
+
+Install through Xbox Device Portal like version 0.1, including the VCLibs
+framework if it is not already installed. No PC is needed to run the test.
+The package uses the same diagnostic app identity; keep your previous logs
+before installing. Compiling and signing alone do not validate the Xbox GPU.

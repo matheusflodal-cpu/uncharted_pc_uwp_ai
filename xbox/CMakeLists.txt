@@ -47,3 +47,14 @@ add_custom_command(TARGET uncharted_uwp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy "${UNCHARTED_ROOT}/LICENSE" "${layout}/LICENSE.txt"
   COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/CREDITS.md" "${layout}"
   COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/AppxManifest.xml" "${layout}")
+
+# The bridge probe validates real Dozen -> D3D12 -> CoreWindow presentation.
+# It deliberately does not enable the unfinished guest renderer.
+option(UNCHARTED_GRAPHICS_PROBE "Build the Xbox graphics presentation probe" OFF)
+if(UNCHARTED_GRAPHICS_PROBE)
+  target_sources(uncharted_uwp PRIVATE graphics/present_bridge.cpp graphics/probe.cpp)
+  target_include_directories(uncharted_uwp PRIVATE graphics "${UNCHARTED_ROOT}/gpu/shadps4"
+    "${UNCHARTED_DEPS}/vulkan-headers/include")
+  target_compile_definitions(uncharted_uwp PRIVATE UNCHARTED_GRAPHICS_PROBE VK_USE_PLATFORM_WIN32_KHR)
+  target_link_libraries(uncharted_uwp PRIVATE d3d12 dxgi dxguid)
+endif()

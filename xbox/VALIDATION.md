@@ -43,3 +43,18 @@ Explicitly **not validated**:
 The contract ran in a Windows desktop harness with a simulated 5 GiB policy budget,
 not in the packaged UWP app. This validates the adapted memory mechanisms on that host;
 it does not establish Xbox compatibility or game performance.
+
+## Xbox diagnostic reported by the tester
+
+The tester's `loader.log` reports diagnostic exit 0, executable System V code
+returning 42, and 8242 memory/swap checksum checks with zero corruptions.
+The swap test released 48 MiB (reported usage fell from 312 to 264 MiB).
+This validates those small diagnostic workloads on that console; it does not
+establish a sufficient RAM budget or playable performance for Uncharted.
+
+## Graphics bridge milestone (0.2)
+
+An optional `-GraphicsProbe` build enables a standalone Vulkan/Dozen color
+attachment and shared D3D12/CoreWindow presentation test. It does not link the
+Uncharted guest renderer. Xbox execution remains pending until a tester supplies
+its new log. This milestone must not be described as playable.

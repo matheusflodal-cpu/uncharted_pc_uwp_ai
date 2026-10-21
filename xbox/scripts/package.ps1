@@ -14,7 +14,9 @@ $Out=[IO.Path]::GetFullPath($Out)
 $vs=& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath
 & "$vs/Common7/Tools/Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
 $sdk=Join-Path $env:WindowsSdkVerBinPath 'x64'
-$package=Join-Path $Out 'UnchartedUwpProbe_0.1.0.0_x64.appx'
+[xml]$manifest=Get-Content (Join-Path $layout 'AppxManifest.xml') -Raw
+$version=$manifest.Package.Identity.Version
+$package=Join-Path $Out "UnchartedUwpProbe_${version}_x64.appx"
 & "$sdk/makeappx.exe" pack /d $layout /p $package /o
 if($LASTEXITCODE) { throw 'Package creation failed.' }
 if(!$CertificatePath) {
@@ -37,5 +39,5 @@ New-Item -ItemType Directory -Force (Join-Path $Out 'Dependencies') | Out-Null
 Copy-Item $vclibs (Join-Path $Out 'Dependencies') -Force
 Copy-Item (Join-Path $root 'README.md') (Join-Path $Out 'README.md') -Force
 Compress-Archive -Path $package,(Join-Path $Out 'Dependencies'),(Join-Path $Out 'README.md') `
-    -DestinationPath (Join-Path $Out 'UnchartedUwpProbe-0.1.0.0.zip') -Force
+    -DestinationPath (Join-Path $Out "UnchartedUwpProbe-$version.zip") -Force
 Write-Output "Diagnostic package: $package"

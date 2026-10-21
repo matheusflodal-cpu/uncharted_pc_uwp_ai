@@ -19,6 +19,16 @@
 
 extern "C" int uncharted_probe_main(int argc,char **argv);
 extern "C" FILE *uncharted_uwp_fopen(const char*,const char*);
+#ifdef UNCHARTED_GRAPHICS_PROBE
+#include "present_bridge.h"
+static winrt::agile_ref<winrt::Windows::UI::Core::CoreWindow> core_window;
+extern "C" IUnknown* uncharted_uwp_core_window() {
+    auto window=core_window.get();
+    auto result=reinterpret_cast<IUnknown*>(winrt::get_abi(window));
+    result->AddRef();
+    return result;
+}
+#endif
 static std::atomic<bool> finished{false};
 static std::atomic<bool> closed{false};
 extern "C" uint64_t uncharted_uwp_app_memory_usage() {
@@ -59,7 +69,11 @@ static int load() {
     if(_wfreopen_s(&stream,(std::wstring(local)+L"\\loader.log").c_str(),L"w",stdout)) return 1;
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
-    std::puts("Uncharted 0.3.6 UWP diagnostic — no graphics or gameplay backend linked");
+#ifdef UNCHARTED_GRAPHICS_PROBE
+    std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
+#else
+    std::puts("Uncharted 0.3.6 UWP CPU/memory diagnostic — gameplay is not linked");
+#endif
     std::printf("App memory: %llu / %llu MiB\n",uncharted_uwp_app_memory_usage()>>20,
                 uncharted_uwp_app_memory_limit()>>20);
     if(!native_smoke()) { std::puts("STOP: executable-memory smoke failed"); return 1; }
@@ -68,6 +82,9 @@ static int load() {
     FILE *settings=uncharted_uwp_fopen((root+"\\run.txt").c_str(),"rb");
     std::string mode=line(settings),dump=line(settings),game=line(settings);
     if(settings) std::fclose(settings);
+#ifdef UNCHARTED_GRAPHICS_PROBE
+    if(mode.empty()||mode=="graphics") return UnchartedUwp::GraphicsProbe();
+#endif
     if(mode.empty()||mode=="memory") {
         std::vector<std::string> values={"uncharted-uwp","--memory-selftest"};
         std::vector<char*> args; for(auto &v:values) args.push_back(v.data());
@@ -93,6 +110,9 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
     }
     void SetWindow(winrt::Windows::UI::Core::CoreWindow const& value) {
         window=value;
+#ifdef UNCHARTED_GRAPHICS_PROBE
+        core_window=winrt::make_agile(window);
+#endif
         window.Closed([](auto const&,auto const&) { closed=true; TerminateProcess(GetCurrentProcess(),0); });
     }
     void Load(winrt::hstring const&) {}

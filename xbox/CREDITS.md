@@ -24,3 +24,13 @@ Mesa/Dozen is the proposed graphics bridge for a later milestone; this CPU-only
 package neither bundles it nor claims that it renders Uncharted on Xbox.
 
 New integration code is GPL-2.0-or-later, compatible with the inherited code.
+
+## Graphics presentation probe
+
+The optional graphics bridge and probe adapt Cosmo/gow3_xbox commit
+`d0975c91d827045724230476c1527cd38afd72f4` (GPL-2.0-or-later).
+Mesa/Dozen is built from Cosmo/mesa_ai_slop_version commit
+`82804960ac7919b24dbf27d1cec2b4d637573731`; its MIT license ships with the package.
+Vulkan headers and Microsoft DXC are pinned by archive SHA-256 in the build
+scripts/workflow. Their license files ship under ThirdParty. No Sony game data
+or shaders are included.
