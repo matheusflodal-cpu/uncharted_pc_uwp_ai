@@ -53,11 +53,11 @@ extern "C" int uncharted_uwp_gamepad(UnchartedInput* output) {
         return -1;
     }
 }
-extern "C" int uncharted_uwp_vibration(uint8_t large,uint8_t small) {
+extern "C" int uncharted_uwp_vibration(uint8_t large_motor,uint8_t small_motor) {
     try {
         apartment(); std::scoped_lock lock(mutex);
         auto pad=controller(); if(!pad) return 0;
-        pad.Vibration({large/255.0,small/255.0,0,0});
+        pad.Vibration({large_motor/255.0,small_motor/255.0,0,0});
         return 1;
     } catch(const winrt::hresult_error&) { return -1; }
 }
