@@ -1,4 +1,4 @@
-> **Xbox development branch:** an unvalidated UWP CPU/memory diagnostic is in [xbox/README.md](xbox/README.md). It has no gameplay renderer. The Windows port documented below is the upstream project.
+> **Xbox development branch:** an experimental UWP CPU/memory diagnostic, verified on desktop Windows, is in [xbox/README.md](xbox/README.md). It has no gameplay renderer. The Windows port documented below is the upstream project.
 
 # Uncharted: The Nathan Drake Collection for Windows
 

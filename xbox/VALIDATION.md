@@ -21,13 +21,25 @@ Result: **PASS**.
 - The Appx manifest parsed as XML, the Actions workflow parsed as YAML,
   and `git diff --check` passed.
 
+Windows CI validation also **passed**:
+
+- Windows SDK 10.0.26100.0 / clang-cl 19.1.5 compilation.
+- The desktop test harness executed the same UWP FromApp memory backend: sparse commits,
+  live aliases, protections, remaps, concurrent readers and actual file-backed eviction/restoration.
+- 8,242 checksum checks, zero corruption. The release probe reduced private commit from
+  149 MiB to 101 MiB after paging out 48 MiB; all 64 MiB byte patterns were restored.
+- Package import verification against WindowsApp.lib, Store CRT and bundled dependencies.
+- MakeAppx packaging and SHA-256 test-certificate signing.
+- Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39531180717
+- Code commit: `8f5910c5327b08d8d36598273cd0fc6fd7128979`.
+
 Explicitly **not validated**:
 
-- Windows SDK/clang-cl compilation, PE imports, package signing or installation.
-- Windows/UWP-specific memory mapping, physical aliases, actual paging or memory pressure.
+- Installation or execution of the UWP package on Xbox.
+- Memory pressure under the Xbox's actual OS-enforced AppContainer budget.
 - Uncharted's real executable initialization, any graphics, audio, input or gameplay.
 - Frame rate, resolution, stability or progress through any of the three games.
 
-The inherited UWP memory contract and swap-integrity tests are included for the
-first Windows/Xbox run; their successful execution in the GoW3 project does not
-establish that this adaptation passes them.
+The contract ran in a Windows desktop harness with a simulated 5 GiB policy budget,
+not in the packaged UWP app. This validates the adapted memory mechanisms on that host;
+it does not establish Xbox compatibility or game performance.

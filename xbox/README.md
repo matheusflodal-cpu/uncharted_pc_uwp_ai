@@ -1,6 +1,6 @@
 # Uncharted UWP — primeira etapa de desenvolvimento
 
-**Estado: código de diagnóstico de CPU e memória. Não é um port jogável.**
+**Estado: pacote de diagnóstico de CPU e memória compilado e assinado. Não é um port jogável.**
 Base: Uncharted for Windows **v0.3.6**, commit
 `b787c1068c3a9a9ba3ec43dd8086af2bf7d35c7d`.
 Referência de Xbox: Cosmo/gow3_xbox
@@ -29,9 +29,13 @@ relocações, bibliotecas nativas, metadados inválidos e imports ausentes. Tamb
 os testes de leitura/escrita por buffer com leituras parciais injetadas, os testes de arquivos
 de mod/salvamento e os testes Python indicados em `VALIDATION.md`.
 
-**Ainda não foi compilado no Windows, instalado no Xbox ou executado com os jogos reais.**
-Os testes portáveis não validam a compilação clang-cl nem as APIs de memória UWP.
-A existência de um workflow não significa que ele já executou ou passou.
+**A compilação Windows, a verificação de imports UWP, o empacotamento e a assinatura passaram no Actions.**
+O teste adicional das APIs de memória passou em um executável de diagnóstico no Windows desktop:
+8.242 checagens de integridade, zero corrupção, e recuperação dos dados após paginação em disco.
+Esse executável usa o mesmo backend de memória, com um orçamento simulado de 5 GiB; ele não
+impõe o limite real de um AppContainer e não substitui o teste no console.
+**Ainda não foi instalado no Xbox nem executado com os jogos reais.**
+Execução verificada: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39531180717.
 
 ## Compilar com GitHub Actions
 
@@ -105,7 +109,7 @@ chamada ausente ou erro; ele não tem gráficos, áudio nem controle e não é u
 
 ## Próximas etapas, em ordem
 
-1. Corrigir os eventuais erros de compilação Windows e validar memória/aliases/paginação no Xbox.
+1. Validar no Xbox os testes de memória/aliases/paginação que já passaram no Windows desktop.
 2. Integrar o renderizador **do Uncharted** com CoreWindow e Mesa/Dozen, preservando suas
    correções de shaders e sincronização; os dois renderizadores não são intercambiáveis.
 3. Conectar controles, áudio, vídeo, salvamento e suspensão/retomada.
