@@ -292,3 +292,20 @@ assuming padding after guest memory. After those fixes the AJM sanitizer
 run passed with UBSAN_OPTIONS=halt_on_error=1 and no reported errors.
 The AudioOut sanitizer run passed its 100 checks as well. Leak detection
 was disabled for the local ASan runs under this execution environment.
+
+## v0.6 Windows CI passed
+
+Code: ec7a50af6121f5f61e3ede7dd3ab40ac97d9df3f
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39640377783
+
+- Full renderer and app compiled and linked with native XAudio2 and AJM.
+- AudioOut: 100 checks and explicit device-failure case passed.
+- AJM: 4648 checks passed with the pinned FFmpeg 7.1.1 build; real MP3 PCM
+  output and ATRAC9 initialization confirmed in the Windows harness.
+- Pad: 187 checks; overlay loader: 31 checks; graphics resolver: 65 imports.
+- Native preparation parity: six tests; swap: 8242 checks, zero corruption;
+  POSIX memory: 32786 checks.
+- UWP import allowlist, MakeAppx and APPX 0.6.0.0 signing passed.
+
+Physical audio output, actual game audio decoding and this revision's guest
+boot remain unverified until the tester provides new Xbox logs.
