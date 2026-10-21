@@ -48,3 +48,13 @@ Cosmo/gow3_xbox `d0975c91d827045724230476c1527cd38afd72f4`,
 `xbox/platform/input.cpp`, plus the Xbox Back-request handling in its UWP host. Guest pad layouts, errors and export contracts follow
 Supermedo/uncharted_pc `src/runtime_pad.c`. Error constants were also checked
 against shadPS4's pad_errors.h. New selection, mapping and contract tests are GPL-2.0-or-later.
+
+## Native audio 0.6
+
+The XAudio2 bridge adapts Cosmo/gow3_xbox d0975c91
+`xbox/platform/audio.cpp` and `audio.h` (GPL-2.0-or-later). The guest AudioOut
+ABI, pacing, channel layout and volume behavior derive from Uncharted's
+`src/runtime_audio.c`; its existing `src/runtime_ajm.c` provides ATRAC9 and
+MP3 decoding. LibAtrac9 is pinned by the existing git submodule and its MIT
+license ships under ThirdParty. MP3 uses the already pinned LGPL FFmpeg build.
+The tiny MP3 regression fixture is a generated sine tone, not game content.

@@ -25,6 +25,7 @@
 extern "C" int uncharted_probe_main(int argc,char **argv);
 #ifdef UNCHARTED_GUEST_INPUT
 int UnchartedInputProbe();
+int UnchartedAudioProbe();
 #endif
 extern "C" FILE *uncharted_uwp_fopen(const char*,const char*);
 #ifdef UNCHARTED_GRAPHICS_PROBE
@@ -189,7 +190,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.5.1 — guarded overlay startup and experimental guest boot");
+    std::puts("Uncharted UWP 0.6 — native Xbox audio, AJM and experimental guest boot");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -211,14 +212,20 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.5",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {
             int diagnostic=choose(dispatcher,L"Diagnosticos",L"Escolha o teste.",
-                {L"Testar controle",L"Testar renderizador",L"Sair"});
+                {L"Testar audio",L"Outros testes",L"Sair"});
             if(diagnostic<0||diagnostic==2) return 0;
-            mode=diagnostic==0 ? "pad" : "renderer";
+            if(diagnostic==0) mode="audio";
+            else {
+                diagnostic=choose(dispatcher,L"Outros testes",L"Escolha o teste.",
+                    {L"Testar controle",L"Testar renderizador",L"Sair"});
+                if(diagnostic<0||diagnostic==2) return 0;
+                mode=diagnostic==0 ? "pad" : "renderer";
+            }
         }
         else {
             int selected=choose(dispatcher,L"Selecionar jogo",L"Qual Uncharted esta no seu dump?",
@@ -233,6 +240,12 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     }
 #endif
 #ifdef UNCHARTED_GUEST_INPUT
+    if(mode=="audio") {
+        const int action=choose(dispatcher,L"Teste de audio",L"O teste toca um som baixo por cerca de dois segundos, primeiro a esquerda e depois a direita. Ajuste a TV para um volume confortavel. A tela pode ficar sem imagem.", {L"Comecar",L"Sair"});
+        if(action!=0) return 0;
+        watch_for(30);
+        return UnchartedAudioProbe();
+    }
     if(mode=="pad") {
         const int action=choose(dispatcher,L"Teste do controle",L"Depois de Comecar, voce tera 20 segundos numa tela sem imagem. Aperte A, B, X e Y, gire os dois analogicos em circulos e pressione LT e RT ate o fim. Y pede uma vibracao breve. O teste termina sozinho.",
             {L"Comecar",L"Sair"});
@@ -258,7 +271,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
         std::vector<char*> args; for(auto &v:values) args.push_back(v.data());
         return uncharted_probe_main(int(args.size()),args.data());
     }
-    if(mode!="imports"&&mode!="boot") { std::puts("STOP: run.txt mode must be menu, pad, renderer, graphics, memory, imports or boot"); return 1; }
+    if(mode!="imports"&&mode!="boot") { std::puts("STOP: run.txt mode must be menu, audio, pad, renderer, graphics, memory, imports or boot"); return 1; }
     if(game!="1"&&game!="2"&&game!="3") { std::puts("STOP: run.txt line 3 must select game 1, 2 or 3"); return 1; }
     watch_for(300);
     if(dump.empty()) dump=discover_dump(root);
@@ -272,7 +285,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode=="boot") {
         values.erase(std::find(values.begin(),values.end(),"--cpu-only"));
-        std::puts("EXPERIMENTAL guest boot: renderer linked; native Xbox input linked; audio and online guest APIs remain unavailable");
+        std::puts("EXPERIMENTAL guest boot: renderer linked; native Xbox input and XAudio2/AJM linked; online and other system guest APIs remain unavailable");
     }
 #endif
     if(mode=="imports") values.push_back("--list-missing");

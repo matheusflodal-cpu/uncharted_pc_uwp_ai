@@ -33,6 +33,9 @@ def main():
         run(OUT / name)
     run(*common, "tests/test_uwp_pad.c", "-o", OUT / "pad-contract")
     run(OUT / "pad-contract")
+    run(*common, "-Ixbox/platform", "tests/test_uwp_audio.c", "-lm", "-o", OUT / "audio-contract")
+    run(OUT / "audio-contract")
+    run(OUT / "audio-contract", "--device-failure")
     run(*common, "-DUNCHARTED_STANDALONE_MEMORY_CONTRACT", "tests/test_uwp_posix_memory.c",
         "src/runtime_memory.c", "-o", OUT / "posix-memory-contract")
     run(OUT / "posix-memory-contract")

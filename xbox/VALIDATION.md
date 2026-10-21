@@ -248,3 +248,35 @@ https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/3963527185
 - Swap: 8242 checks, zero corruption.
 - UWP import allowlist passed; MakeAppx and signing succeeded for 0.5.1.0.
 - Xbox boot confirmation remains pending; no gameplay claim is made.
+
+## Xbox v0.5.1: original Uncharted 3 code executed
+
+Tester logs confirm the unavailable overlay entry was vkDestroySurfaceKHR.
+Disabling the overlay allowed presenter/GnmDriver/VideoOut initialization,
+then linked module initializers and the original guest entry at offset 0x4897a0.
+The game created 124 threads, opened 112 files and read 8,943,786 bytes.
+It stopped explicitly at sceAudioOutInit (JfEPXVxhFqA#G#H), caller 0x684953.
+The bridge presented its first frame; this does not establish game imagery.
+Ten missing path lookups were recorded, but numerous other reads succeeded
+under the same app0 mount. No evidence currently establishes that all ten
+paths are required or that the dump root is wrong. No game data is available
+to inspect those files here; no fallback paths or fabricated assets are added.
+
+## v0.6 audio integration
+
+The UWP app links real AudioOut via XAudio2 and the upstream Uncharted AJM
+ATRAC9/MP3 decoder runtime. Basic CPU and graphics resolver harnesses retain
+their diagnostic audio stubs. Native audio device and submission failures
+propagate explicit errors; only explicit BB_AUDIO=none uses a timer sink.
+Audio conversion scratch storage is per port, outside the guest thread stack;
+port locks persist through close/reopen and protect lookup-to-use transitions.
+
+Local AudioOut contract passed 100 checks for ABI, all eight PCM formats,
+channel ordering, stereo folding, atomic volume validation, buffer cadence,
+close/reopen and submission errors. A separate device-init failure check
+passed without silently marking the guest API initialized. Existing portable
+checks (187 pad, 32786 POSIX memory and 44 Python tests) passed.
+The Windows AJM contract uses a generated MP3 tone for actual decoding and
+a known stereo 48 kHz configuration for ATRAC9 initialization. It also checks
+batch parsing, malformed chunks and context ownership. Windows build/decoder
+checks and actual Xbox sound/boot remain pending until recorded below.

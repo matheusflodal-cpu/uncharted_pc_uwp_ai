@@ -7,13 +7,15 @@
 #include "gpu/bbgpu.h"
 #include <stdio.h>
 #define UNPORTED(service) uintptr_t runtime_##service##_resolve(const char *nid) { (void)nid; return 0; }
+#ifndef UNCHARTED_GUEST_AUDIO
 UNPORTED(audio)
 UNPORTED(ajm)
+void runtime_audio_report(void) { puts("UWP diagnostic: audio backend not connected"); }
+void runtime_ajm_report(void) { puts("UWP diagnostic: decoder backend not connected"); }
+#endif
 #ifndef UNCHARTED_GUEST_INPUT
 UNPORTED(pad)
 #endif
-void runtime_audio_report(void) { puts("UWP diagnostic: audio backend not connected"); }
-void runtime_ajm_report(void) { puts("UWP diagnostic: decoder backend not connected"); }
 #ifndef UNCHARTED_GUEST_INPUT
 void runtime_pad_report(void) { puts("UWP diagnostic: guest controller backend not connected"); }
 #endif

@@ -414,7 +414,9 @@ typedef struct {
 static int parse_job(const unsigned char *p, uint32_t size, Job *job) {
     memset(job,0,sizeof(*job));
     for (const unsigned char *end=p+size; p<end;) {
+        if ((size_t)(end-p)<8) return -1;
         uint32_t word; memcpy(&word,p,4);
+        if (ident(word)!=IDENT_CONTROL_FLAGS && ident(word)!=IDENT_RUN_FLAGS && (size_t)(end-p)<16) return -1;
         switch (ident(word)) {
         case IDENT_CONTROL_FLAGS: case IDENT_RUN_FLAGS: {
             Chunk c; memcpy(&c,p,8);
@@ -594,6 +596,7 @@ static ABI int32_t ajm_finalize(uint32_t id) {
         if (c->instances[i].handle) Atrac9ReleaseHandle(c->instances[i].handle);
         mp3_release(&c->instances[i]);
     }
+    for (int i=0;i<MAX_BATCHES;++i) if (batches[i].used && batches[i].context==(int)id) batches[i].used=0;
     free(c); contexts[id]=NULL;
     pthread_mutex_unlock(&lock);
     return 0;
@@ -647,6 +650,7 @@ static ABI uint32_t ajm_instance_codec(uint32_t instance) { return (instance>>14
 static ABI int32_t ajm_batch_start(uint32_t id, unsigned char *buffer, uint32_t size, int priority,
                                    BatchError *error, uint32_t *out) {
     (void)priority;
+    if (!out || (!buffer && size)) return ERR_INVALID_PARAMETER;
     if (size & 7) return ERR_MALFORMED_BATCH;
     pthread_mutex_lock(&lock);
     Context *c=context(id);
@@ -654,9 +658,11 @@ static ABI int32_t ajm_batch_start(uint32_t id, unsigned char *buffer, uint32_t 
     int slot=-1;
     for (int i=0;i<MAX_BATCHES;++i) if (!batches[i].used) { slot=i; break; }
     if (slot<0) { pthread_mutex_unlock(&lock); return ERR_OUT_OF_RESOURCES; }
-    for (unsigned char *p=buffer, *end=buffer+size; p<end;) {
+    for (unsigned char *p=buffer, *end=buffer ? buffer+size : buffer; p<end;) {
+        if ((size_t)(end-p)<8) { pthread_mutex_unlock(&lock); return ERR_MALFORMED_BATCH; }
         Chunk chunk; memcpy(&chunk,p,8);
         unsigned char *body=p+8;
+        if (chunk.size>(size_t)(end-body)) { pthread_mutex_unlock(&lock); return ERR_MALFORMED_BATCH; }
         p=body+chunk.size;
         if (ident(chunk.word)==IDENT_INLINE) continue;
         Job job;
@@ -676,14 +682,14 @@ static ABI int32_t ajm_batch_start(uint32_t id, unsigned char *buffer, uint32_t 
 static ABI int32_t ajm_batch_wait(uint32_t id, uint32_t batch, uint32_t timeout, BatchError *error) {
     (void)timeout; (void)error;
     pthread_mutex_lock(&lock);
-    int32_t r=!context(id) ? ERR_INVALID_CONTEXT : !batch || batch>MAX_BATCHES || !batches[batch-1].used ? ERR_INVALID_BATCH : 0;
+    int32_t r=!context(id) ? ERR_INVALID_CONTEXT : !batch || batch>MAX_BATCHES || !batches[batch-1].used || batches[batch-1].context!=(int)id ? ERR_INVALID_BATCH : 0;
     if (!r) { if (batches[batch-1].canceled) r=ERR_CANCELLED; batches[batch-1].used=0; }
     pthread_mutex_unlock(&lock);
     return r;
 }
 static ABI int32_t ajm_batch_cancel(uint32_t id, uint32_t batch) {
     pthread_mutex_lock(&lock);
-    int32_t r=!context(id) ? ERR_INVALID_CONTEXT : !batch || batch>MAX_BATCHES || !batches[batch-1].used ? ERR_INVALID_BATCH : 0;
+    int32_t r=!context(id) ? ERR_INVALID_CONTEXT : !batch || batch>MAX_BATCHES || !batches[batch-1].used || batches[batch-1].context!=(int)id ? ERR_INVALID_BATCH : 0;
     pthread_mutex_unlock(&lock);
     return r; /* already processed at submission: nothing to cancel */
 }

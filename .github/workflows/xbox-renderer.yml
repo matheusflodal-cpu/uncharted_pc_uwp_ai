@@ -8,6 +8,8 @@ on:
       - 'src/**'
       - 'tests/test_uwp*.c'
       - 'tests/test_uwp*.cpp'
+      - 'tests/uwp_audio_fixture.h'
+      - 'third_party/LibAtrac9'
       - 'tests/test_native_prepare.py'
       - 'scripts/prepare.py'
       - 'scripts/link_modules.py'
@@ -144,6 +146,14 @@ jobs:
         run: |
           & ./xbox/.local/build/uncharted_overlay_contract.exe
           if($LASTEXITCODE) { throw "Overlay loader contract failed: $LASTEXITCODE" }
+      - name: Verify audio output and actual AJM decoders
+        run: |
+          & ./xbox/.local/build/uncharted_audio_contract.exe
+          if($LASTEXITCODE) { throw "AudioOut contract failed: $LASTEXITCODE" }
+          & ./xbox/.local/build/uncharted_audio_contract.exe --device-failure
+          if($LASTEXITCODE) { throw "Audio failure contract failed: $LASTEXITCODE" }
+          & ./xbox/.local/build/uncharted_ajm_contract.exe
+          if($LASTEXITCODE) { throw "AJM contract failed: $LASTEXITCODE" }
       - name: Verify graphics imports without GPU initialization
         timeout-minutes: 2
         run: |
@@ -161,7 +171,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Uncharted-UWP-renderer-integration
-          path: xbox/.local/packages/UnchartedUwpProbe-0.5.1.0.zip
+          path: xbox/.local/packages/UnchartedUwpProbe-0.6.0.0.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

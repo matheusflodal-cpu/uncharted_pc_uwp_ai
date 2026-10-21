@@ -46,6 +46,7 @@ if($GraphicsProbe) {
     Copy-Item (Join-Path $root '.local/deps/vulkan-headers/LICENSE*') (Join-Path $layout 'ThirdParty') -Force
     if($CompileRenderer) {
         $notices=Join-Path $layout 'ThirdParty'
+        Copy-Item (Join-Path $root '../third_party/LibAtrac9/LICENSE') (Join-Path $notices 'LibAtrac9-LICENSE.txt') -Force
         $sources=Get-Content (Join-Path $PSScriptRoot 'graphics-dependencies.json') -Raw | ConvertFrom-Json -AsHashtable
         foreach($name in $sources.Keys) {
             Copy-Item (Join-Path $root ".local/deps/$name/$($sources[$name][2])") (Join-Path $notices "$name-LICENSE.txt") -Force
@@ -61,7 +62,7 @@ if($GraphicsProbe) {
         }
     }
     $manifest=Join-Path $layout 'AppxManifest.xml'
-    $packageVersion=if($CompileRenderer) { '0.5.1.0' } else { '0.2.0.0' }
+    $packageVersion=if($CompileRenderer) { '0.6.0.0' } else { '0.2.0.0' }
     (Get-Content $manifest -Raw).Replace('Version="0.1.0.0"',"Version=`"$packageVersion`"").Replace('CPU and memory diagnostic;','Graphics bridge diagnostic;') | Set-Content $manifest -Encoding utf8NoBOM
 }
 Write-Output 'Built the diagnostic target. This is not a playable port.'
