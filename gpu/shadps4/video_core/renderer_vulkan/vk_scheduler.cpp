@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <thread>
 #include <algorithm>
 #include <cstdio>
@@ -270,6 +273,9 @@ void Scheduler::WaitDeferredSignals() {
 }
 
 void Scheduler::WaitHostCopies() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::CopyWait,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     if (host_copies_done.load(std::memory_order_acquire) < host_copies_issued) {
         BbStats::WaitTimer timer{BbStats::host_copies_wait_ns};
         BbStats::host_copy_waits.fetch_add(1, std::memory_order_relaxed);
@@ -318,6 +324,9 @@ void Scheduler::KickRecording(bool force) {
 }
 
 void Scheduler::SyncRecording() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::RecordSync,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     if (!recording_threaded) {
         return;
     }
@@ -452,6 +461,9 @@ void Scheduler::AllocateWorkerCommandBuffers() {
 }
 
 void Scheduler::SubmitExecution(SubmitInfo& info) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Submit,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     std::scoped_lock lk{submit_mutex};
     // bbport: BB_SUBMIT_THREADS=1 names each thread that submits through this scheduler (once).
     static const bool submit_threads = std::getenv("BB_SUBMIT_THREADS") != nullptr;
@@ -552,7 +564,12 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
         }
     }
     ImGui::Core::TextureManager::Submit();
-    auto submit_result = instance.GetGraphicsQueue().submit(submit_info, info.fence);
+    auto submit_result = [&] {
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::DriverSubmit,signal_value,reinterpret_cast<uintptr_t>(this));
+#endif
+        return instance.GetGraphicsQueue().submit(submit_info,info.fence);
+    }();
     if (submit_result == vk::Result::eErrorDeviceLost) {
         std::printf("Device lost during submit\n");
         DeviceLost(instance.GetDevice());

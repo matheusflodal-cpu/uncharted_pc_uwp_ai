@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <map>
 #include "core/libraries/videoout/driver.h"
 #include <xxhash.h>
@@ -560,6 +563,9 @@ void Rasterizer::DrainDrawPipe(u32 reason, u32 line, const char* function) {
     if (!draw_pipe || !OnStageA()) {
         return;
     }
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::DrawDrain,reason,reinterpret_cast<uintptr_t>(this));
+#endif
     static const bool stats = std::getenv("BB_FRAME_STATS") != nullptr;
     if (!stats) {
         draw_pipe->Drain(reason);
@@ -1076,6 +1082,9 @@ bool Rasterizer::FilterDrawPasses() const {
 }
 
 void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* prepared) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Count(UnchartedBootTrace::draws);
+#endif
     RENDERER_TRACE;
     BbStats::draws.fetch_add(1, std::memory_order_relaxed);
 
@@ -1775,6 +1784,9 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
 }
 
 void Rasterizer::DispatchDirect() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Count(UnchartedBootTrace::dispatches);
+#endif
     RENDERER_TRACE;
     BbStats::dispatches.fetch_add(1, std::memory_order_relaxed);
     // bbport: like draws, handed to the draw recording thread after the pipeline selection.

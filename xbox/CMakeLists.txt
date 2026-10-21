@@ -22,6 +22,14 @@ list(TRANSFORM cpu_sources APPEND ".c")
 add_executable(uncharted_uwp WIN32 platform/main.cpp platform/prepare_game.cpp platform/runtime_compat.c
   platform/diagnostic_services.c ${cpu_sources})
 add_executable(uncharted_prepare_contract platform/prepare_contract.cpp platform/prepare_game.cpp)
+add_executable(uncharted_boot_trace_contract "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace.cpp"
+  "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace_peer.cpp")
+target_include_directories(uncharted_boot_trace_contract PRIVATE platform)
+target_compile_options(uncharted_boot_trace_contract PRIVATE /W3 /EHsc)
+target_link_libraries(uncharted_boot_trace_contract PRIVATE WindowsApp)
+add_executable(uncharted_dialog_trace_contract "${UNCHARTED_ROOT}/tests/test_uwp_dialog_trace.c")
+target_include_directories(uncharted_dialog_trace_contract PRIVATE "${UNCHARTED_ROOT}")
+target_link_libraries(uncharted_dialog_trace_contract PRIVATE WindowsApp)
 target_compile_options(uncharted_prepare_contract PRIVATE /W3 /EHsc)
 
 add_executable(uncharted_memory_contract platform/memory_contract_host.c platform/runtime_compat.c

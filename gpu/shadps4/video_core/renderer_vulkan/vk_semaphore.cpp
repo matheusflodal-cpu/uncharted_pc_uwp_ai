@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
@@ -106,6 +109,9 @@ Semaphore::Semaphore(const Instance& instance_) : instance{instance_} {
 Semaphore::~Semaphore() = default;
 
 void Semaphore::Refresh() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::TimelineQuery,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     u64 this_tick{};
     u64 counter{};
     do {
@@ -119,6 +125,9 @@ void Semaphore::Refresh() {
         }
     } while (!gpu_tick.compare_exchange_weak(this_tick, counter, std::memory_order_release,
                                              std::memory_order_relaxed));
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::ObserveTimeline(reinterpret_cast<uintptr_t>(this),CurrentTick(),KnownGpuTick());
+#endif
 }
 
 void Semaphore::Wait(u64 tick) {
@@ -126,6 +135,9 @@ void Semaphore::Wait(u64 tick) {
     if (IsFree(tick)) {
         return;
     }
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope wait_trace(UnchartedBootTrace::Kind::GpuWait,tick,reinterpret_cast<uintptr_t>(this));
+#endif
     // Update the GPU tick and try again
     Refresh();
     if (IsFree(tick)) {

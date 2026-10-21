@@ -1,3 +1,4 @@
+#include "boot_trace.h"
 #include "common/types.h"
 #include "present_bridge.h"
 #include <d3d12.h>
@@ -148,6 +149,7 @@ vk::ImageView Presenter::View() const {return impl->view;}
 vk::Semaphore Presenter::Acquired() const {return *impl->acquired;}
 vk::Semaphore Presenter::Ready() const {return *impl->ready;}
 bool Presenter::Acquire() {
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::BridgeAcquire);
     auto& p=*impl; p.WaitNative();
     Check(p.cmd.reset({}),"Reset acquire command");
     Check(p.cmd.begin({.flags=vk::CommandBufferUsageFlagBits::eOneTimeSubmit}),"Begin acquire command");
@@ -160,6 +162,7 @@ bool Presenter::Acquire() {
     std::array signals{*p.acquired}; p.Submit({},signals); p.first=false; return true;
 }
 bool Presenter::Present(bool vsync) {
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::BridgePresent);
     auto& p=*impl;
     Check(p.cmd.reset({}),"Reset release command");
     Check(p.cmd.begin({.flags=vk::CommandBufferUsageFlagBits::eOneTimeSubmit}),"Begin release command");

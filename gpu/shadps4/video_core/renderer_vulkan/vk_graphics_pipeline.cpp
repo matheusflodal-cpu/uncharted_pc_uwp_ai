@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <algorithm>
 #include <utility>
 #include <boost/container/small_vector.hpp>
@@ -437,8 +440,12 @@ GraphicsPipeline::GraphicsPipeline(
         .layout = *pipeline_layout,
     };
 
-    auto [pipeline_result, pipe] =
-        device.createGraphicsPipelineUnique(pipeline_cache, pipeline_info);
+    auto [pipeline_result, pipe] = [&] {
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope driver_trace(UnchartedBootTrace::Kind::DriverGraphics,0,reinterpret_cast<uintptr_t>(this));
+#endif
+        return device.createGraphicsPipelineUnique(pipeline_cache, pipeline_info);
+    }();
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
                vk::to_string(pipeline_result));
     pipeline = std::move(pipe);

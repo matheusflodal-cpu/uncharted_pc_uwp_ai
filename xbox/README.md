@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6)
+## Teste atual (0.6.1)
 
-Veja [LEIA-ME-0.6.txt](LEIA-ME-0.6.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.1.txt](LEIA-ME-0.6.1.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -19,9 +19,13 @@ A apresentação do Xbox continua usando a ponte D3D12/CoreWindow.
 A correção do overlay foi confirmada no console: faltava vkDestroySurfaceKHR.
 O jogo executou seus módulos e abriu 112 arquivos antes de solicitar áudio.
 A 0.6 integra AudioOut e os decodificadores originais AJM ATRAC9/MP3.
-Use **Diagnósticos → Testar áudio** para ouvir um tom curto antes de testar
-o boot novamente. Som real e funcionamento durante o jogo precisam de
-confirmação no Xbox; rede/PSN e outros serviços continuam pendentes.
+O teste dedicado de som foi confirmado fisicamente no Xbox: 375 buffers,
+48 kHz estéreo e resultado 0. No boot, três portas e o contexto AJM abriram.
+O jogo solicitou shaders gráficos e compute, mas a tela permaneceu preta
+até o limite de 90 segundos. A 0.6.1 registra início e retorno dessas etapas,
+filas e mensagens, com resumos a cada 5 segundos e limite de boot de 300
+segundos. Não é necessário repetir áudio ou controle. Rede/PSN e outros
+serviços continuam pendentes; nenhum menu ou gameplay foi confirmado.
 
 ## Etapas
 
@@ -34,7 +38,8 @@ confirmação no Xbox; rede/PSN e outros serviços continuam pendentes.
 | 0.4.1 | Registro das funções gráficas antes do diagnóstico de imports | Log do testador: pendências caíram de 124 para 59 |
 | 0.5 | Controle nativo, teste físico e memória POSIX anônima | Controle: 949 amostras, zero erros; vibração confirmada pelo testador. Boot parou na inicialização gráfica |
 | 0.5.1 | Verificação do carregamento do overlay e logs de inicialização gráfica | Xbox executou código do jogo; parou em sceAudioOutInit |
-| 0.6 | AudioOut via XAudio2, AJM ATRAC9/MP3 e teste de som | Pendente |
+| 0.6 | AudioOut via XAudio2, AJM ATRAC9/MP3 e teste de som | Tom ouvido no Xbox; boot abriu áudio/AJM e chegou a shaders reais; watchdog de 90 s encerrou |
+| 0.6.1 | Medições de compilação, filas, CPU/RAM e mensagens do jogo; teste de boot de 5 min | Pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -100,8 +105,8 @@ quando a preparação falha. Não altera o dump.
 
 O script `python xbox/scripts/prepare-game.py --help` continua disponível para
 inspeção privada no PC, mas deixou de ser necessário para esse fluxo no Xbox.
-Os watchdogs são 5 minutos para preparação e 90 segundos para diagnóstico de
-imports/boot; o menu não tem limite. O teste gráfico mantém limite de 60 segundos.
+Os watchdogs são 5 minutos para preparação e, na 0.6.1, 5 minutos para boot;
+o diagnóstico de imports mantém 90 segundos; o menu não tem limite. O teste gráfico mantém limite de 60 segundos.
 
 ## Compilar
 

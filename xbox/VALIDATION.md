@@ -309,3 +309,43 @@ Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39640
 
 Physical audio output, actual game audio decoding and this revision's guest
 boot remain unverified until the tester provides new Xbox logs.
+
+## Xbox v0.6: audible probe and black-screen boot
+
+The tester confirmed hearing the dedicated tone. loader (5).log reports
+XAudio2 at 48 kHz stereo, 375 buffers, one port and diagnostic exit 0.
+The subsequent loader (6).log opened three AudioOut ports (main eight-channel
+float folded to stereo, voice mono and pad mono), initialized AJM, continued
+startup, invoked MsgDialog and reached guest shader/pipeline compilation.
+The two errors logs supplied were byte-identical. Both ended at
+`STOP: diagnostic phase watchdog`, with no named unsupported import or
+access fault. No shader/pipeline completion timings were available, so the
+90-second termination does not establish a driver hang or slow compilation.
+No game image, menu or gameplay was confirmed.
+
+## v0.6.1 timed boot diagnostics
+
+Boot now has a fixed 300-second limit after preparation; imports retain 90 s.
+RAII scopes record begins/returns, elapsed duration and C++ exception exits
+for shader translation/SPIR-V, graphics/compute pipeline creation, actual
+driver compilation calls, recording synchronization, copy waits, submissions,
+timeline queries/waits, draw-pipe drains and the CoreWindow bridge.
+Begin/return lines are limited to the first eight of each kind, plus operations
+lasting at least one second or ending by exception. Heartbeats every five
+seconds print aggregate counters, bounded pending scopes, cached timeline
+values and CPU/app-memory samples. Counts indicate calls/returns, not rendered
+images; cached timeline values are not fresh driver queries. Concurrent
+snapshots are best-effort and never acquire renderer or driver locks.
+
+MsgDialog diagnostics inspect only the recognized 136-byte PS4 parameter
+layout with a 48-byte base (checked against shadPS4 system/msgdialog_ui.h).
+ReadProcessMemory protects every guest read; strings are bounded to 1024
+bytes and control characters are normalized. Unknown layouts/unreadable
+pointers are reported without following them. Guest dialog completion and
+result semantics remain unchanged; this adds observation, not dialog UI.
+
+Local contracts passed: 17 trace checks covering cross-translation-unit
+state, eight workers, scope cleanup, exceptions, bounded-slot saturation and
+snapshots; 21 dialog checks covering modes, layouts, bad pointers and bounded
+strings. Existing portable checks and 44 Python tests passed. Windows build
+and new Xbox trace remain pending until recorded below.

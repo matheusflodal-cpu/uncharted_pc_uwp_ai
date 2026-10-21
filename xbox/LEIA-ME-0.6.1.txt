@@ -1,0 +1,28 @@
+UNCHARTED UWP 0.6.1 — MEDICOES DA TELA PRETA
+
+Ainda nao ha menu do Uncharted ou gameplay confirmado. Nao inclui o jogo.
+O som e o controle ja foram confirmados no Xbox; nao precisa repetir.
+
+INSTALAR E TESTAR
+1. Extraia o ZIP e atualize o .appx pelo Device Portal. Se pedido, inclua a
+   VCLibs em Dependencies. Mantenha o mesmo dump no pendrive.
+2. Se um run.txt antigo pular o menu, use o arquivo da pasta Opcoes.
+3. Escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+4. Aguarde ate CINCO MINUTOS depois da preparacao, mesmo com tela preta.
+   O teste ainda encerra ao atingir esse limite. Se fechar antes, guarde os logs.
+5. Envie loader.log E errors.log dessa tentativa. Nao reabra o aplicativo
+   antes de copiar os logs, pois cada abertura os sobrescreve.
+
+O QUE VAMOS DESCOBRIR
+O log registra inicio e retorno de shaders/pipelines, chamadas ao driver,
+envio de comandos, esperas e apresentacao. A cada cinco segundos, registra
+contadores, operacoes pendentes e uso de CPU/RAM. Os valores de timeline
+sao os ultimos observados pelo renderizador, sem consultar a GPU pelo monitor.
+A compilacao pode demorar, ou pode haver uma espera sem progresso: os logs
+anteriores nao permitem distinguir essas possibilidades. Esta versao mede
+as etapas e amplia o prazo; ainda nao confirma a causa nem a correcao.
+
+O texto das caixas de mensagem solicitadas pelo jogo sera registrado quando
+o layout for reconhecido e a memoria estiver legivel. A leitura e protegida e
+limitada; a resposta automatica do dialogo continua como no runtime original.
+Nao precisa copiar o jogo novamente nem alterar os arquivos do dump.

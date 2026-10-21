@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -561,6 +564,9 @@ std::condition_variable eop_flip_cv;
 
 bool VideoOutDriver::SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg,
                                 bool is_eop /*= false*/) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Count(UnchartedBootTrace::flips);
+#endif
     if (index != -1) {
         const s64 now = std::chrono::steady_clock::now().time_since_epoch().count();
         const s64 last = last_flip_submit_ns.exchange(now, std::memory_order_relaxed);

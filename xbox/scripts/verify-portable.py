@@ -36,6 +36,8 @@ def main():
     run(*common, "-Ixbox/platform", "tests/test_uwp_audio.c", "-lm", "-o", OUT / "audio-contract")
     run(OUT / "audio-contract")
     run(OUT / "audio-contract", "--device-failure")
+    run(*common, "tests/test_uwp_dialog_trace.c", "-o", OUT / "dialog-trace-contract")
+    run(OUT / "dialog-trace-contract")
     run(*common, "-DUNCHARTED_STANDALONE_MEMORY_CONTRACT", "tests/test_uwp_posix_memory.c",
         "src/runtime_memory.c", "-o", OUT / "posix-memory-contract")
     run(OUT / "posix-memory-contract")
@@ -45,6 +47,9 @@ def main():
         raise SystemExit("C++20 compiler not found")
     run(cxx, "-std=c++20", "-O2", "-Wall", "-Wextra", "-Werror",
         "xbox/platform/prepare_game.cpp", "xbox/platform/prepare_contract.cpp", "-o", OUT / "prepare-contract")
+    run(cxx, "-std=c++20", "-O2", "-Wall", "-Wextra", "-Werror", "-pthread", "-Ixbox/platform",
+        "tests/test_uwp_boot_trace.cpp", "tests/test_uwp_boot_trace_peer.cpp", "-o", OUT / "boot-trace-contract")
+    run(OUT / "boot-trace-contract")
     environment = dict(os.environ, BB_TEST_NATIVE_PREPARE=str(OUT / "prepare-contract"), BB_TEST_PROBE=str(OUT / "bb-probe"), BB_TEST_CONTENT=str(OUT / "content-test"))
     modules = ["test_probe", "test_prepare", "test_link_libc", "test_content", "test_uwp_prepare", "test_native_prepare"]
     run(sys.executable, "-m", "unittest", *modules, "-v", env=dict(environment,

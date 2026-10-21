@@ -18,6 +18,7 @@
 #include <memory>
 #include <stdexcept>
 #include "prepare_game.h"
+#include "boot_trace.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -41,7 +42,8 @@ extern "C" IUnknown* uncharted_uwp_core_window() {
 static std::atomic<bool> finished{false};
 static std::atomic<bool> closed{false};
 static std::atomic<ULONGLONG> deadline{0};
-static void watch_for(unsigned seconds) { deadline=GetTickCount64()+ULONGLONG(seconds)*1000; }
+static std::atomic<const char*> phase{"startup"};
+static void watch_for(unsigned seconds,const char* name="diagnostic") { phase=name; deadline=GetTickCount64()+ULONGLONG(seconds)*1000; }
 
 // Wait on a worker; all popup creation and callbacks stay on the UI dispatcher.
 static int choose(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher,
@@ -190,7 +192,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6 — native Xbox audio, AJM and experimental guest boot");
+    std::puts("Uncharted UWP 0.6.1 — timed GPU boot trace and protected dialog diagnostics");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -212,7 +214,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.1",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {
@@ -273,10 +275,10 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     }
     if(mode!="imports"&&mode!="boot") { std::puts("STOP: run.txt mode must be menu, audio, pad, renderer, graphics, memory, imports or boot"); return 1; }
     if(game!="1"&&game!="2"&&game!="3") { std::puts("STOP: run.txt line 3 must select game 1, 2 or 3"); return 1; }
-    watch_for(300);
+    watch_for(300,"preparation");
     if(dump.empty()) dump=discover_dump(root);
     prepare_dump(dump,root,game);
-    watch_for(90);
+    watch_for(mode=="boot" ? 300 : 90,mode=="boot" ? "guest boot" : "imports");
     std::string prepared=root+"\\Prepared\\u"+game;
     const std::string user=root+"\\user";
     CreateDirectoryFromAppW(winrt::to_hstring(user).c_str(),nullptr);
@@ -284,6 +286,8 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
         "--app0",dump,"--user",user,"--content-profile",prepared+"\\content.bin","--timeout","0"};
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode=="boot") {
+        UnchartedBootTrace::Enable();
+        std::puts("UWP boot trace enabled: heartbeat every 5 seconds; hard boot limit 300 seconds");
         values.erase(std::find(values.begin(),values.end(),"--cpu-only"));
         std::puts("EXPERIMENTAL guest boot: renderer linked; native Xbox input and XAudio2/AJM linked; online and other system guest APIs remain unavailable");
     }
@@ -332,10 +336,29 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
             });
         }).detach();
         std::thread([] {
+            try { winrt::init_apartment(winrt::apartment_type::multi_threaded); }
+            catch(...) { std::fputs("UWP monitor apartment initialization unavailable\n",stderr); }
+            ULONGLONG last=0,last_cpu_wall=0;unsigned long long last_cpu=0;
             while(!finished&&!closed) {
+                const auto now=GetTickCount64();
+                if(UnchartedBootTrace::enabled.load() && now-last>=5000) {
+                    UnchartedBootTrace::Snapshot();
+                    try {
+                        std::printf("UWP boot memory: %llu / %llu MiB\n",uncharted_uwp_app_memory_usage()>>20,uncharted_uwp_app_memory_limit()>>20);
+                    } catch(...) { std::puts("UWP boot memory: query unavailable"); }
+                    FILETIME created{},exited{},kernel{},user{};
+                    if(GetProcessTimes(GetCurrentProcess(),&created,&exited,&kernel,&user)) {
+                        const unsigned long long cpu=(((static_cast<unsigned long long>(kernel.dwHighDateTime)<<32)|kernel.dwLowDateTime)+
+                            ((static_cast<unsigned long long>(user.dwHighDateTime)<<32)|user.dwLowDateTime))/10000;
+                        if(last_cpu_wall) std::printf("UWP boot CPU: process_cpu_delta=%llu ms wall_delta=%llu ms\n",cpu-last_cpu,now-last_cpu_wall);
+                        last_cpu=cpu;last_cpu_wall=now;
+                    }
+                    last=now;
+                }
                 const auto limit=deadline.load();
                 if(limit&&GetTickCount64()>limit) {
-                    std::fputs("STOP: diagnostic phase watchdog\n",stderr);
+                    std::fprintf(stderr,"STOP: diagnostic phase watchdog phase=%s\n",phase.load());
+                    UnchartedBootTrace::Snapshot();
                     std::fflush(nullptr); TerminateProcess(GetCurrentProcess(),124);
                 }
                 Sleep(100);

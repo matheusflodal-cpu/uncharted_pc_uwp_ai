@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -435,6 +438,9 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         const auto pipeline_hash = std::hash<GraphicsPipelineKey>{}(sel.graphics_key);
         LOG_INFO(Render_Vulkan, "Compiling graphics pipeline {:#x}", pipeline_hash);
         CompileTimer timer;
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Graphics,pipeline_hash);
+#endif
 
         GraphicsPipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<GraphicsPipeline>(
@@ -466,6 +472,9 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
         const auto pipeline_hash = std::hash<ComputePipelineKey>{}(compute_key);
         LOG_INFO(Render_Vulkan, "Compiling compute pipeline {:#x}", pipeline_hash);
         CompileTimer timer;
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Compute,pipeline_hash);
+#endif
 
         ComputePipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
@@ -799,13 +808,27 @@ bool PipelineCache::RefreshComputeKey() {
 vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::RuntimeInfo& runtime_info,
                                               const std::span<const u32>& code, size_t perm_idx,
                                               Shader::Backend::Bindings& binding) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope shader_trace(UnchartedBootTrace::Kind::Shader,info.pgm_hash);
+#endif
     LOG_INFO(Render_Vulkan, "Compiling {} shader {:#x} {}", info.hw_stage, info.pgm_hash,
              perm_idx != 0 ? "(permutation)" : "");
     DumpShader(code, info.pgm_hash, info.hw_stage, perm_idx, "bin");
     CompileTimer timer;
 
+#ifdef UNCHARTED_UWP
+    const auto ir_program = [&] {
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Translate,info.pgm_hash);
+        return Shader::TranslateProgram(code,pools,info,runtime_info,profile);
+    }();
+    auto spv = [&] {
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Spirv,info.pgm_hash);
+        return Shader::Backend::SPIRV::EmitSPIRV(profile,runtime_info,ir_program,binding);
+    }();
+#else
     const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
     auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
+#endif
     DumpShader(spv, info.pgm_hash, info.hw_stage, perm_idx, "spv");
 
     vk::ShaderModule module;

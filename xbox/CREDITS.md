@@ -62,3 +62,10 @@ The tiny MP3 regression fixture is a generated sine tone, not game content.
 `xbox/platform/atrac9_utility.c` adapts the pinned MIT-licensed LibAtrac9 utility
 to define zero-width reversal and avoid signed-shift undefined behavior.
 The original submodule and its license remain unchanged.
+
+## Boot diagnostics 0.6.1
+
+The bounded MsgDialog diagnostic prefix layout was checked against shadPS4
+`src/core/libraries/system/msgdialog_ui.h` (GPL-2.0-or-later). The observer
+and timed, lock-free boot trace are new GPL-2.0-or-later integration code.
+They do not implement or draw the guest's message UI.
