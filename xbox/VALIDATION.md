@@ -177,5 +177,25 @@ No game execution occurred in this imports test.
 - The existing paged I/O/file tests and 44 Python tests passed.
 
 The app now links a WinRT pad backend plus a 20-second physical input probe.
-Windows builds/contracts and Xbox hardware input/game boot are pending at this source change.
+Windows checks are recorded below; Xbox hardware input and game boot remain pending.
 Audio, network, motion/touch sensors and Uncharted-specific SDL pad callbacks remain unavailable.
+
+### Final 0.5 Windows package validated
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39631311445
+Code: `e896471a4a48785ce03258ccd3d812bd43fd68fb`.
+
+- Native input C/C++ and UWP host compiled and linked.
+- Pad contract: 187 checks passed with simulated input, including System V calls.
+- POSIX memory contract: 32,786 checks passed against the UWP FromApp backend.
+- Memory/swap contract: 8242 checks, zero corruption, result 0.
+- Graphics contract: 65 imports, zero missing, without a window/GPU initialization.
+- All six native preparation/Python parity methods passed on Windows.
+- Active package imports verified; MakeAppx and SHA-256 signing passed for 0.5.0.0.
+- Linux ASan/UBSan passed the pad contract (LeakSanitizer disabled for the execution
+  environment); UBSan passed the memory contract after guarding empty VMA erasure.
+- FreeBSD stable/9 mman.h confirms guest MS_SYNC=0, MS_ASYNC=1, MS_INVALIDATE=2.
+
+This validates the build and tested contracts, not the WinRT controller on Xbox
+or real Uncharted boot/gameplay. The 20-second physical probe and game boot logs
+are the next console checks. Audio and other listed guest APIs remain pending.
