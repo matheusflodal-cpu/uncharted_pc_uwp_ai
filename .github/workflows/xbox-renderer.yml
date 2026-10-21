@@ -5,6 +5,12 @@ on:
     branches: ['xbox/**']
     paths:
       - 'gpu/**'
+      - 'src/**'
+      - 'tests/test_uwp*.c'
+      - 'tests/test_native_prepare.py'
+      - 'scripts/prepare.py'
+      - 'scripts/link_modules.py'
+      - 'scripts/content_profile.py'
       - 'xbox/**'
       - '.github/workflows/xbox-renderer.yml'
 permissions:
