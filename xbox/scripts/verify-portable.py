@@ -32,8 +32,13 @@ def main():
         run(*common, source, "-o", OUT / name)
         run(OUT / name)
     run(*common, "-D_GNU_SOURCE", "tests/test_content.c", "src/runtime_content.c", "-o", OUT / "content-test")
-    environment = dict(os.environ, BB_TEST_PROBE=str(OUT / "bb-probe"), BB_TEST_CONTENT=str(OUT / "content-test"))
-    modules = ["test_probe", "test_prepare", "test_link_libc", "test_content", "test_uwp_prepare"]
+    cxx = os.environ.get("CXX") or shutil.which("c++")
+    if not cxx:
+        raise SystemExit("C++20 compiler not found")
+    run(cxx, "-std=c++20", "-O2", "-Wall", "-Wextra", "-Werror",
+        "xbox/platform/prepare_game.cpp", "xbox/platform/prepare_contract.cpp", "-o", OUT / "prepare-contract")
+    environment = dict(os.environ, BB_TEST_NATIVE_PREPARE=str(OUT / "prepare-contract"), BB_TEST_PROBE=str(OUT / "bb-probe"), BB_TEST_CONTENT=str(OUT / "content-test"))
+    modules = ["test_probe", "test_prepare", "test_link_libc", "test_content", "test_uwp_prepare", "test_native_prepare"]
     run(sys.executable, "-m", "unittest", *modules, "-v", env=dict(environment,
         PYTHONPATH=os.pathsep.join([str(ROOT / "tests"), str(ROOT / "scripts")])) )
 

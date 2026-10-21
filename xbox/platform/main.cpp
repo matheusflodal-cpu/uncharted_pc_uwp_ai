@@ -14,6 +14,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <future>
+#include <memory>
+#include <stdexcept>
+#include "prepare_game.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -32,6 +36,110 @@ extern "C" IUnknown* uncharted_uwp_core_window() {
 #endif
 static std::atomic<bool> finished{false};
 static std::atomic<bool> closed{false};
+static std::atomic<ULONGLONG> deadline{0};
+static void watch_for(unsigned seconds) { deadline=GetTickCount64()+ULONGLONG(seconds)*1000; }
+
+// Wait on a worker; all popup creation and callbacks stay on the UI dispatcher.
+static int choose(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher,
+                  const wchar_t* title,const wchar_t* message,std::vector<std::wstring> labels,
+                  bool cancellable=true) {
+    auto answer=std::make_shared<std::promise<int>>();
+    auto future=answer->get_future();
+    dispatcher.RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal,
+        [answer,title,message,labels=std::move(labels),cancellable] {
+        try {
+            using namespace winrt::Windows::UI::Popups;
+            MessageDialog dialog(message,title);
+            for(size_t i=0;i<labels.size();++i)
+                dialog.Commands().Append(UICommand(labels[i],nullptr,winrt::box_value(int32_t(i))));
+            dialog.DefaultCommandIndex(0);
+            if(cancellable) dialog.CancelCommandIndex(uint32_t(labels.size()-1));
+            dialog.ShowAsync().Completed([answer](auto const& operation,auto) {
+                try {
+                    auto command=operation.GetResults();
+                    answer->set_value(command ? winrt::unbox_value<int32_t>(command.Id()) : -1);
+                } catch(...) { answer->set_exception(std::current_exception()); }
+            });
+        } catch(...) { answer->set_exception(std::current_exception()); }
+    });
+    return future.get();
+}
+static UnchartedPrepare::Bytes read_input(const std::string& path,size_t limit) {
+    FILE* raw=uncharted_uwp_fopen(path.c_str(),"rb");
+    if(!raw) throw std::runtime_error("Cannot open required input: "+path);
+    std::unique_ptr<FILE,decltype(&std::fclose)> file(raw,std::fclose);
+    if(_fseeki64(raw,0,SEEK_END)) throw std::runtime_error("Cannot seek: "+path);
+    auto size=_ftelli64(raw);
+    if(size<=0||uint64_t(size)>limit) throw std::runtime_error("Empty or oversized input: "+path);
+    if(_fseeki64(raw,0,SEEK_SET)) throw std::runtime_error("Cannot rewind: "+path);
+    UnchartedPrepare::Bytes bytes(size_t(size),0);
+    if(std::fread(bytes.data(),1,bytes.size(),raw)!=bytes.size()) throw std::runtime_error("Short read: "+path);
+    return bytes;
+}
+static void publish(const std::string& path,const UnchartedPrepare::Bytes& bytes) {
+    const auto temporary=winrt::to_hstring(path+".tmp"), destination=winrt::to_hstring(path);
+    FILE* raw=uncharted_uwp_fopen((path+".tmp").c_str(),"wb");
+    if(!raw) throw std::runtime_error("Cannot create preparation: "+path);
+    bool ok=std::fwrite(bytes.data(),1,bytes.size(),raw)==bytes.size();
+    if(std::fflush(raw)) ok=false;
+    if(std::fclose(raw)) ok=false;
+    if(!ok) { DeleteFileFromAppW(temporary.c_str()); throw std::runtime_error("Short write: "+path); }
+    WIN32_FILE_ATTRIBUTE_DATA attributes;
+    bool moved=!GetFileAttributesExFromAppW(destination.c_str(),GetFileExInfoStandard,&attributes)
+        ? MoveFileFromAppW(temporary.c_str(),destination.c_str())!=FALSE
+        : ReplaceFileFromAppW(destination.c_str(),temporary.c_str(),nullptr,0,nullptr,nullptr)!=FALSE;
+    if(!moved) { DeleteFileFromAppW(temporary.c_str()); throw std::runtime_error("Cannot publish preparation: "+path); }
+}
+static bool is_dump(const std::string& path) {
+    try {
+        auto bytes=read_input(path+"\\sce_sys\\param.sfo",1<<20);
+        return UnchartedPrepare::CheckTitle(bytes).empty();
+    } catch(...) { return false; }
+}
+static std::string discover_dump(const std::string& root) {
+    std::vector<std::string> candidates={root+"\\Dump"};
+    try {
+        auto volumes=winrt::Windows::Storage::KnownFolders::RemovableDevices().GetFoldersAsync().get();
+        for(auto const& volume:volumes) {
+            const auto path=winrt::to_string(volume.Path());
+            std::printf("USB volume: %s\n",path.c_str());
+            if(path.empty()) continue;
+            for(const char* suffix:{"\\dumps\\Uncharted","\\Uncharted"}) candidates.push_back(path+suffix);
+        }
+    } catch(const winrt::hresult_error& error) {
+        std::fprintf(stderr,"USB enumeration: %s\n",winrt::to_string(error.message()).c_str());
+    }
+    std::string selected;
+    for(const auto& path:candidates) if(is_dump(path)) {
+        std::printf("Uncharted dump candidate: %s\n",path.c_str());
+        if(!selected.empty()) throw std::runtime_error("Multiple dumps found; specify one in LocalState/run.txt");
+        selected=path;
+    }
+    if(selected.empty()) throw std::runtime_error("Dump not found. Place sce_sys, sce_module and game files in USB:\\dumps\\Uncharted, or LocalState\\Dump");
+    return selected;
+}
+static void prepare_dump(const std::string& dump,const std::string& root,const std::string& game) {
+    const char* executable=game=="1" ? "eboot.bin" : game=="2" ? "big2-ps4_Shipping.elf" : "big3-ps4_Shipping.elf";
+    std::printf("Native preparation starting: game=%s executable=%s dump=%s\n",game.c_str(),executable,dump.c_str());
+    UnchartedPrepare::Dump inputs;
+    inputs.sfo=read_input(dump+"\\sce_sys\\param.sfo",1<<20);
+    const auto title_error=UnchartedPrepare::CheckTitle(inputs.sfo);
+    if(!title_error.empty()) throw std::runtime_error(title_error);
+    inputs.eboot=read_input(dump+"\\"+executable,512ull<<20);
+    inputs.libc=read_input(dump+"\\sce_module\\libc.prx",512ull<<20);
+    inputs.fios=read_input(dump+"\\sce_module\\libSceFios2.prx",512ull<<20);
+    auto files=UnchartedPrepare::Prepare(inputs);
+    const auto directory=root+"\\Prepared", prepared=directory+"\\u"+game;
+    for(const auto& path:{directory,prepared})
+        if(!CreateDirectoryFromAppW(winrt::to_hstring(path).c_str(),nullptr)&&GetLastError()!=ERROR_ALREADY_EXISTS)
+            throw std::runtime_error("Cannot create preparation directory: "+path);
+    // The loader is called only after both writes succeed. Every boot prepares fresh;
+    // it never executes stale cache files after a failed or interrupted preparation.
+    publish(prepared+"\\boot-linked.bin",files.boot);
+    publish(prepared+"\\content.bin",files.content);
+    std::printf("Native preparation: PASS title=%s boot=%zu content=%zu\n",files.title.c_str(),files.boot.size(),files.content.size());
+}
+
 extern "C" uint64_t uncharted_uwp_app_memory_usage() {
     return winrt::Windows::System::MemoryManager::AppMemoryUsage();
 }
@@ -63,7 +171,7 @@ static std::string line(FILE *file) {
     buffer[std::strcspn(buffer,"\r\n")]=0;
     return buffer;
 }
-static int load() {
+static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     const auto local=winrt::Windows::Storage::ApplicationData::Current().LocalFolder().Path();
     const std::string root=winrt::to_string(local);
     FILE *stream=nullptr;
@@ -71,7 +179,7 @@ static int load() {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted 0.3.6 UWP renderer integration — synthetic shader/texture tests; game execution remains experimental");
+    std::puts("Uncharted UWP 0.4 — native dump preparation and experimental guest boot");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -91,6 +199,25 @@ static int load() {
     FILE *settings=uncharted_uwp_fopen((root+"\\run.txt").c_str(),"rb");
     std::string mode=line(settings),dump=line(settings),game=line(settings);
     if(settings) std::fclose(settings);
+#ifdef UNCHARTED_LINK_RENDERER
+    if(mode.empty()||mode=="menu") {
+        int action=choose(dispatcher,L"Uncharted UWP 0.4",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+                          {L"Selecionar jogo",L"Testar renderizador",L"Sair"});
+        if(action<0||action==2) return 0;
+        if(action==1) mode="renderer";
+        else {
+            int selected=choose(dispatcher,L"Selecionar jogo",L"Qual Uncharted esta no seu dump?",
+                                {L"Uncharted 1",L"Uncharted 2",L"Uncharted 3"},false);
+            if(selected<0) return 0;
+            game=std::to_string(selected+1);
+            action=choose(dispatcher,L"Teste com o dump",L"Conferir servicos lista o que falta. Tentar iniciar executa o jogo com o renderizador experimental.",
+                          {L"Conferir servicos",L"Tentar iniciar",L"Sair"});
+            if(action<0||action==2) return 0;
+            mode=action==0 ? "imports" : "boot";
+        }
+    }
+#endif
+    watch_for(60);
 #ifdef UNCHARTED_GRAPHICS_PROBE
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="renderer"||mode=="graphics") {
@@ -107,9 +234,12 @@ static int load() {
         std::vector<char*> args; for(auto &v:values) args.push_back(v.data());
         return uncharted_probe_main(int(args.size()),args.data());
     }
-    if(mode!="imports"&&mode!="boot") { std::puts("STOP: run.txt mode must be memory, imports or boot"); return 1; }
+    if(mode!="imports"&&mode!="boot") { std::puts("STOP: run.txt mode must be menu, renderer, graphics, memory, imports or boot"); return 1; }
     if(game!="1"&&game!="2"&&game!="3") { std::puts("STOP: run.txt line 3 must select game 1, 2 or 3"); return 1; }
-    if(dump.empty()) { std::puts("STOP: run.txt line 2 needs the dump folder"); return 1; }
+    watch_for(300);
+    if(dump.empty()) dump=discover_dump(root);
+    prepare_dump(dump,root,game);
+    watch_for(90);
     std::string prepared=root+"\\Prepared\\u"+game;
     const std::string user=root+"\\user";
     CreateDirectoryFromAppW(winrt::to_hstring(user).c_str(),nullptr);
@@ -144,15 +274,17 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
         std::thread([dispatcher] {
             winrt::init_apartment(winrt::apartment_type::multi_threaded);
             int result=1;
-            try { result=load(); }
-            catch(std::exception const& e) { std::fprintf(stderr,"STOP: %s\n",e.what()); }
+            std::string reason;
+            try { result=load(dispatcher); }
+            catch(const winrt::hresult_error& e) { reason=winrt::to_string(e.message()); std::fprintf(stderr,"STOP: %s\n",reason.c_str()); }
+            catch(std::exception const& e) { reason=e.what(); std::fprintf(stderr,"STOP: %s\n",e.what()); }
             catch(...) { std::fputs("STOP: unhandled host error\n",stderr); }
             std::printf("Diagnostic finished: %d\n",result); std::fflush(nullptr);
             finished=true;
-            dispatcher.RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal,[result] {
+            dispatcher.RunAsync(winrt::Windows::UI::Core::CoreDispatcherPriority::Normal,[result,reason] {
                 winrt::Windows::UI::Popups::MessageDialog dialog(
-                    winrt::to_hstring("Diagnostic result: "+std::to_string(result)+
-                    ". Retrieve LocalState/loader.log and errors.log through Device Portal. Gameplay is not implemented."),
+                    winrt::to_hstring("Resultado: "+std::to_string(result)+(reason.empty() ? "" : "\n"+reason)+
+                    ". Pegue LocalState/loader.log e errors.log no Device Portal. O log indica a etapa que passou ou o motivo da parada; resultado 0 sozinho nao confirma jogo funcionando."),
                     L"Uncharted UWP Diagnostic");
                 dialog.ShowAsync().Completed([](auto const&,auto) {
                     winrt::Windows::ApplicationModel::Core::CoreApplication::Exit();
@@ -160,8 +292,14 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
             });
         }).detach();
         std::thread([] {
-            for(int i=0;i<600&&!finished&&!closed;++i) Sleep(100);
-            if(!finished&&!closed) { std::fputs("STOP: 60-second diagnostic watchdog\n",stderr); std::fflush(nullptr); TerminateProcess(GetCurrentProcess(),124); }
+            while(!finished&&!closed) {
+                const auto limit=deadline.load();
+                if(limit&&GetTickCount64()>limit) {
+                    std::fputs("STOP: diagnostic phase watchdog\n",stderr);
+                    std::fflush(nullptr); TerminateProcess(GetCurrentProcess(),124);
+                }
+                Sleep(100);
+            }
         }).detach();
         while(!closed) window.Dispatcher().ProcessEvents(winrt::Windows::UI::Core::CoreProcessEventsOption::ProcessOneAndAllPending);
     }

@@ -9,7 +9,7 @@ Uncharted Xbox release. No game binaries, assets or prepared game images are inc
   preparation/linking scripts, game-specific fixes and source tree. GPL-2.0.
 - Cosmo and contributors: https://github.com/Cosmo/gow3_xbox at
   `d0975c91d827045724230476c1527cd38afd72f4`.
-  UWP file/CRT adapters, sparse guest-memory backend, disk pager and memory contract tests;
+  UWP file/CRT adapters, sparse guest-memory backend, disk pager, memory contract tests and native preparation;
   adapted here with the `UNCHARTED_UWP` guard and `BB_` environment names. GPL-2.0.
 - KytyPS5 Xbox pager design (`1303170`), credited by the GoW3 implementation:
   https://github.com/Cosmo/KytyPS5. GPL-2.0.
@@ -36,3 +36,7 @@ Mesa/Dozen is built from Cosmo/mesa_ai_slop_version commit
 Vulkan headers and Microsoft DXC are pinned by archive SHA-256 in the build
 scripts/workflow. Their license files ship under ThirdParty. No Sony game data
 or shaders are included.
+
+The 0.4 native preparer adapts the GoW3 parser/linker at the same commit above.
+Its output magic and import canonicalization follow the original Uncharted
+Python scripts. No GoW3 game-specific XML or graphics patches are applied.

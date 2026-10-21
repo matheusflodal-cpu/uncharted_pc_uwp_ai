@@ -1,4 +1,4 @@
-"""Prepare one Uncharted executable for CPU diagnostics; never edits the dump.
+"""Prepare one Uncharted executable for experimental boot diagnostics; never edits the dump.
 
 Run on the PC with the user's decrypted Nathan Drake Collection dump. Outputs
 contain game-derived code and must stay private; never commit or redistribute.
@@ -71,4 +71,4 @@ if __name__ == "__main__":
         prepare_game(args.dump, args.game, args.out)
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(1, f"Preparation failed: {error}\n")
-    print(f"Prepared CPU diagnostic files: {args.out}")
+    print(f"Prepared private diagnostic files: {args.out}")

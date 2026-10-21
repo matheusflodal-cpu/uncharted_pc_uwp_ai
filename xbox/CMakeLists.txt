@@ -17,8 +17,11 @@ set(cpu_sources runtime runtime_content runtime_file runtime_kernel runtime_memo
   runtime_thread runtime_time runtime_fiber compat_win probe)
 list(TRANSFORM cpu_sources PREPEND "${UNCHARTED_ROOT}/src/")
 list(TRANSFORM cpu_sources APPEND ".c")
-add_executable(uncharted_uwp WIN32 platform/main.cpp platform/runtime_compat.c
+add_executable(uncharted_uwp WIN32 platform/main.cpp platform/prepare_game.cpp platform/runtime_compat.c
   platform/diagnostic_services.c ${cpu_sources})
+add_executable(uncharted_prepare_contract platform/prepare_contract.cpp platform/prepare_game.cpp)
+target_compile_options(uncharted_prepare_contract PRIVATE /W3 /EHsc)
+
 add_executable(uncharted_memory_contract platform/memory_contract_host.c platform/runtime_compat.c
   platform/diagnostic_services.c ${cpu_sources})
 foreach(cpu_target uncharted_uwp uncharted_memory_contract)
