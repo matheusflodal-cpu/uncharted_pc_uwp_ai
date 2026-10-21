@@ -1,0 +1,55 @@
+name: Xbox renderer integration
+on:
+  workflow_dispatch:
+  push:
+    branches: ['xbox/**']
+    paths:
+      - 'gpu/**'
+      - 'xbox/**'
+      - '.github/workflows/xbox-renderer.yml'
+permissions:
+  contents: read
+jobs:
+  renderer:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Enable long paths
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build tools
+        run: python -m pip install ninja==1.11.1.4 zstandard==0.23.0
+      - name: Cache pinned dependencies
+        uses: actions/cache@v4
+        with:
+          path: xbox/.local/deps
+          key: renderer-vs2026-v1-${{ hashFiles('xbox/scripts/fetch-deps.py', 'xbox/scripts/graphics-dependencies.json', 'xbox/scripts/build-deps.ps1', 'xbox/scripts/boost-headers.py') }}
+      - name: MSYS2 build tools
+        run: C:\msys64\usr\bin\bash.exe -lc 'pacman -Sy --noconfirm --needed make diffutils zstd'
+      - name: Ensure clang-cl
+        run: |
+          $vs=& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          if(!(Test-Path "$vs\VC\Tools\Llvm\x64\bin\clang-cl.exe")) {
+            Start-Process -Wait -FilePath "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" -ArgumentList `
+              'modify', '--installPath', "`"$vs`"", '--add', 'Microsoft.VisualStudio.Component.VC.Llvm.Clang', '--quiet', '--norestart', '--nocache'
+          }
+          & "$vs\VC\Tools\Llvm\x64\bin\clang-cl.exe" --version
+      - name: Compile Uncharted renderer library
+        run: ./xbox/scripts/build.ps1 -CompileRenderer
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renderer-build-evidence
+          path: |
+            xbox/.local/build/CMakeCache.txt
+            xbox/.local/build/CMakeFiles/CMakeConfigureLog.yaml
+            xbox/.local/deps/ffmpeg-build/ffbuild/config.log
+          if-no-files-found: ignore

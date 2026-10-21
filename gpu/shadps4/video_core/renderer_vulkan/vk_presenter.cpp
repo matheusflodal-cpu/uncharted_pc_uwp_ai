@@ -135,7 +135,11 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
       swapchain{instance, window}, runtime{instance, draw_scheduler},
       rasterizer{std::make_unique<Rasterizer>(instance, draw_scheduler, runtime, liverpool)},
       texture_cache{rasterizer->GetTextureCache()} {
+#ifdef UNCHARTED_UWP
+    const u32 num_images=std::max(3u,swapchain.GetImageCount());
+#else
     const u32 num_images = swapchain.GetImageCount();
+#endif
     const vk::Device device = instance.GetDevice();
 
     // Create presentation frames.
@@ -154,7 +158,11 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
     fsr_settings.rcas_attenuation =
         static_cast<float>(EmulatorSettings.GetRcasAttenuation() / 1000.f);
 
+#ifndef UNCHARTED_UWP
     fsr_pass.Create(device, instance.GetAllocator(), num_images);
+#else
+    std::puts("UWP presentation: native resolution, temporal upscaling and frame generation disabled");
+#endif
     // bbport: frames are composed in RGBA8 (what frame generation reads and writes) and
     // blitted into the swapchain's format.
     pp_pass.Create(device, FrameGenerator::ColorFormat);
@@ -501,6 +509,20 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                     vk::ImageLayout::eTransferSrcOptimal, image.info.size.width,
                     image.info.size.height, "display", frame_dump_index);
         }
+#ifdef UNCHARTED_UWP
+        const auto base_format=image.info.pixel_format;
+        const bool rgba=base_format==vk::Format::eR8G8B8A8Unorm||base_format==vk::Format::eR8G8B8A8Srgb;
+        const bool bgra=base_format==vk::Format::eB8G8R8A8Unorm||base_format==vk::Format::eB8G8R8A8Srgb;
+        const bool requested_rgba=view_info.format==vk::Format::eR8G8B8A8Unorm||view_info.format==vk::Format::eR8G8B8A8Srgb;
+        const bool requested_bgra=view_info.format==vk::Format::eB8G8R8A8Unorm||view_info.format==vk::Format::eB8G8R8A8Srgb;
+        if((rgba&&requested_bgra)||(bgra&&requested_rgba)) {
+            const bool srgb=view_info.format==vk::Format::eR8G8B8A8Srgb||view_info.format==vk::Format::eB8G8R8A8Srgb;
+            view_info.format=rgba ? (srgb ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm)
+                                  : (srgb ? vk::Format::eB8G8R8A8Srgb : vk::Format::eB8G8R8A8Unorm);
+            view_info.mapping.r=vk::ComponentSwizzle::eB;
+            view_info.mapping.b=vk::ComponentSwizzle::eR;
+        }
+#endif
         image_view = *image.FindView(view_info).image_view;
         image_size = vk::Extent2D{image.info.size.width, image.info.size.height};
         runtime.Transit(&image, vk::ImageLayout::eShaderReadOnlyOptimal,
@@ -510,8 +532,10 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     }
     expected_ratio = static_cast<float>(image_size.width) / static_cast<float>(image_size.height);
 
+#ifndef UNCHARTED_UWP
     image_view = fsr_pass.Render(cmdbuf, image_view, image_size, {frame->width, frame->height},
                                  fsr_settings, frame->is_hdr);
+#endif
 
     // Vulkan has no sRGB variant of the 10-bit format, so an A2R10G10B10Srgb buffer reaches
     // the post process pass still sRGB encoded and has to be decoded there instead.
@@ -801,6 +825,7 @@ bool Presenter::PresentImage(Frame* frame, vk::Image image, bool last) {
     auto& scheduler = present_scheduler;
     const auto cmdbuf = scheduler.CommandBuffer();
 
+
     if (EmulatorSettings.IsVkHostMarkersEnabled()) {
         cmdbuf.beginDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT{
             .pLabelName = "Present",
@@ -866,7 +891,7 @@ bool Presenter::PresentImage(Frame* frame, vk::Image image, bool last) {
                                          : vk::AccessFlagBits::eNone,
                 .oldLayout = vk::ImageLayout::eTransferDstOptimal,
                 .newLayout = overlay ? vk::ImageLayout::eColorAttachmentOptimal
-                                     : vk::ImageLayout::ePresentSrcKHR,
+                                     : Swapchain::PresentLayout(),
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .image = swapchain_image,
@@ -892,7 +917,7 @@ bool Presenter::PresentImage(Frame* frame, vk::Image image, bool last) {
                 .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
                 .dstAccessMask = vk::AccessFlagBits::eNone,
                 .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
-                .newLayout = vk::ImageLayout::ePresentSrcKHR,
+                .newLayout = Swapchain::PresentLayout(),
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .image = swapchain_image,

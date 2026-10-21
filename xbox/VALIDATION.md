@@ -58,3 +58,11 @@ An optional `-GraphicsProbe` build enables a standalone Vulkan/Dozen color
 attachment and shared D3D12/CoreWindow presentation test. It does not link the
 Uncharted guest renderer. Xbox execution remains pending until a tester supplies
 its new log. This milestone must not be described as playable.
+
+## Xbox graphics bridge reported by the tester
+
+The tester's 0.2 log reports `SraKmd_arden`, Vulkan 1.2, a 1280x720
+shared presentation image, `CoreWindow first frame presented`, and exit 0.
+Dynamic rendering and synchronization2 are available; bufferDeviceAddress and
+sparseBinding are not. This validates presentation of the probe attachment,
+not guest shaders, textures, game rendering, or sustained throughput.
