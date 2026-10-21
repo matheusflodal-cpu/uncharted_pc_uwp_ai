@@ -1,0 +1,60 @@
+UNCHARTED UWP 0.4 — PREPARACAO NO XBOX / TESTE DE INICIALIZACAO
+
+Ainda nao e uma versao jogavel confirmada.
+Nao inclui arquivos do jogo. Os testes anteriores validaram CPU, memoria,
+apresentacao e shaders/texturas sinteticos; ainda falta validar o jogo real.
+
+INSTALAR PELO CELULAR
+1. Extraia este ZIP.
+2. No Device Portal do Xbox em Modo de Desenvolvedor, instale o .appx principal.
+3. Se pedido, inclua o .appx da pasta Dependencies (VCLibs).
+4. Se voce ja colocou run.txt em LocalState, apague-o ou substitua-o pelo
+   run.txt da pasta Opcoes deste ZIP. Um run.txt antigo com renderer faz
+   o app repetir o teste grafico em vez de abrir o novo menu.
+
+COLOCAR O SEU DUMP
+No pendrive, crie dumps/Uncharted e coloque ali o dump plaintext compativel
+com o projeto original Supermedo/uncharted_pc, mantendo toda a estrutura.
+A pasta deve conter diretamente:
+  eboot.bin                  (Uncharted 1)
+  big2-ps4_Shipping.elf       (Uncharted 2, se presente)
+  big3-ps4_Shipping.elf       (Uncharted 3, se presente)
+  sce_sys/param.sfo
+  sce_module/libc.prx
+  sce_module/libSceFios2.prx
+  dvdroot_ps4/               (dados do jogo, com as subpastas originais)
+Copie tambem os demais arquivos originais do dump. Nao basta copiar o executavel.
+O app apenas le o dump; prepara os arquivos de inicializacao em LocalState.
+A preparacao agora roda no Xbox. Nao precisa executar Python no computador.
+SELF cifrado/comprimido nao e aceito; esta versao nao descriptografa arquivos.
+
+PRIMEIRO TESTE
+1. Conecte o pendrive e abra Uncharted UWP Diagnostic.
+2. Escolha Selecionar jogo e depois o Uncharted correspondente ao executavel.
+3. Escolha Conferir servicos.
+4. Quando terminar, pegue LocalState/loader.log E errors.log no Device Portal.
+   Envie os dois logs na conversa. Eles mostram a preparacao e os imports que faltam.
+5. Resultado 20 significa que ha imports ausentes. Nao significa que a RAM falhou.
+   Resultado 0 significa que aquela verificacao passou; nao confirma jogabilidade.
+
+A opcao Tentar iniciar executa o codigo do jogo com o renderizador experimental.
+Audio e controle do jogo ainda nao estao ligados. O menu do aplicativo usa o
+controle do Xbox, mas isso nao equivale ao controle dentro do jogo.
+Uma tentativa de boot tem limite de 90 segundos. A preparacao tem 5 minutos.
+O tempo gasto escolhendo opcoes do menu nao conta para esses limites.
+Nao foram validados menu, cenas ou gameplay de nenhum dos tres jogos.
+
+SE NAO ENCONTRAR O DUMP
+Confira se param.sfo esta em dumps/Uncharted/sce_sys/param.sfo, sem uma pasta
+extra entre Uncharted e sce_sys. Conecte somente um dump na busca automatica.
+Alternativa: coloque a mesma estrutura em LocalState/Dump pelo Device Portal.
+Para outro caminho, use LocalState/run.txt com tres linhas:
+  imports
+  D:\dumps\Uncharted
+  1
+Troque D: pela unidade real do pendrive informada no log. A terceira linha
+seleciona 1, 2 ou 3. Com a segunda linha vazia, o app procura automaticamente.
+Os modos renderer e memory repetem os diagnosticos anteriores.
+
+Os logs sao reescritos a cada abertura. Guarde-os antes do proximo teste.
+Nao envie o dump nem os arquivos privados Prepared; somente os logs.

@@ -15,9 +15,9 @@ Result: **PASS**.
 - Paged I/O test passed: multi-chunk data integrity, injected short reads,
   positioned and sequential offsets, EOF, unmapped-buffer fallback and errors.
 - Guest mod-file test passed: read-only game assets and writable user files.
-- **38 Python tests passed, zero failures, zero errors, zero skipped.**
+- **44 Python tests passed, zero failures, zero errors, zero skipped.**
   Modules: `test_probe`, `test_prepare`, `test_link_libc`, `test_content`,
-  `test_uwp_prepare`.
+  `test_uwp_prepare`, `test_native_prepare`.
 - The Appx manifest parsed as XML, the Actions workflow parsed as YAML,
   and `git diff --check` passed.
 
@@ -80,6 +80,27 @@ Code commit: `ebf15e89a42b52f7d13d85087316dfcb49335b42`.
 - MakeAppx and SHA-256 signing of `UnchartedUwpProbe_0.3.0.0_x64.appx` passed.
 - The portable CPU/I/O regression checks and 38 Python tests passed again.
 
-The new texture/shader probes have NOT run on the Xbox yet. Their GPU readbacks,
-the actual guest renderer initialization, game shaders, audio, input and
-playability remain unvalidated. Compilation/signing do not establish them.
+## Xbox renderer probe 0.3 — tester log received
+
+The tester's log reports successful detile tests at 8/16/32/64/128 bits,
+three mips and two layers, with zero incorrect bytes. R8/RGBA8/BC1/BC3
+copies, padded rows, layers and mips also reported zero incorrect bytes.
+RGBA8/BC1 sampling with 128 SSBO slots and descriptor gaps, and storage-image
+writes, reported zero bad components. `Renderer texture/shader self-test: PASS`,
+CoreWindow presentation and diagnostic exit 0 were recorded.
+This validates those synthetic workloads on Xbox, not actual game shaders.
+
+## Native preparation 0.4 — portable checks
+
+The native C++20 preparer was compiled on Linux with `-Wall -Wextra -Werror`.
+Six test methods compare complete BBPROBE5/BBCONT01 files against the original
+Python prepare/link/content tools using invented SELF inputs. Cases cover all
+43 host library spellings, foreign-module fallback, identity version mismatch,
+native exports, main/module TLS, relative/absolute/weak relocations, FS→GS,
+and the libc RET flag. Plaintext ELF output also matches the equivalent SELF.
+Incomplete, encrypted and malformed inputs and wrong titles are rejected.
+Together with existing CPU/I/O coverage, all 44 Python tests passed.
+
+The 0.4 UI, USB discovery and preparation have not yet run on Xbox.
+Real guest initialization, game shaders, audio, input and gameplay remain
+unvalidated. Compilation/signing and portable fixtures do not establish them.
