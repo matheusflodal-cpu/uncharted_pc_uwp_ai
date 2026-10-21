@@ -9,7 +9,7 @@
 #include <cpuid.h>
 #include "runtime.h"
 #include "gpu/bbgpu.h"
-#if !defined(__x86_64__) || !defined(__GNUC__)
+#if (!defined(__x86_64__) && !defined(_M_X64)) || (!defined(__GNUC__) && !defined(__clang__))
 #error This prototype requires x86-64 GCC or Clang (including MinGW).
 #endif
 #ifdef _WIN32
@@ -309,6 +309,13 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     DWORD code=record->ExceptionCode;
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
         /* GPU page tracking (write-protected guest pages) is resolved first. */
+#ifdef UNCHARTED_UWP
+        const uintptr_t pc = (uintptr_t)info->ContextRecord->Rip;
+        const int guest = image && pc >= (uintptr_t)image &&
+            pc - (uintptr_t)image < 512 * UINT64_C(1024) * 1024;
+        if (runtime_memory_handle_commit_fault_at(record->ExceptionInformation[1],
+                (int)record->ExceptionInformation[0], guest)) return EXCEPTION_CONTINUE_EXECUTION;
+#endif
         if (gpu_enabled && bbgpu_handle_fault(info,(void *)record->ExceptionInformation[1])) return EXCEPTION_CONTINUE_EXECUTION;
         if (runtime_fault_recover) {
             /* A speculative guest memory read (GPU draw preparation) faulted: the thread resumes
@@ -787,7 +794,10 @@ static void patch_eop_tick_wait(uint64_t image_size) {
  * released before the new process opens its own. */
 void runtime_restart(void) {
     fflush(NULL);
-#ifdef _WIN32
+#ifdef UNCHARTED_UWP
+    fputs("STOP: relaunch the UWP app to restart this diagnostic build\n", stderr);
+    _exit(21);
+#elif defined(_WIN32)
     /* run.py sets BB_RESTART_COMMAND: the launch command line, started again (new patches). */
     const char *command=getenv("BB_RESTART_COMMAND");
     puts("Runtime: restarting through run.py");
@@ -813,8 +823,18 @@ void runtime_restart(void) {
 #endif
 }
 
+#ifdef UNCHARTED_UWP
+int uncharted_probe_main(int argc, char **argv) {
+#else
 int main(int argc, char **argv) {
+#endif
     setvbuf(stdout, NULL, _IONBF, 0);
+#ifdef UNCHARTED_UWP
+    if (argc == 2 && !strcmp(argv[1], "--memory-selftest")) {
+        AddVectoredExceptionHandler(1, vectored_fault);
+        return runtime_memory_selftest();
+    }
+#endif
 #ifndef _WIN32
     /* Keep host heap objects handed to the guest (thread handles, TLS) in the
        non-PIE brk heap, i.e. below 1 TiB: the guest packs pointers into 40 bits. */
@@ -826,7 +846,11 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     /* The PS4 user range must stay free of host allocations (GPU driver, heaps), and the guest
      * TCB needs one of the 64 TEB TLS slots before DLLs (Vulkan drivers) take them. */
+#ifdef UNCHARTED_UWP
+    puts("UWP: guest address windows reserved on demand");
+#else
     runtime_memory_reserve();
+#endif
     runtime_thread_tcb_offset();
 #endif
     int cpu_only = 0, strict_imports = 0, list_missing = 0;
@@ -1011,6 +1035,9 @@ int main(int argc, char **argv) {
         printf("%" PRIu64 " of %" PRIu64 " imports missing\n",missing,import_count);
         return missing ? 20 : 0;
     }
+#ifdef UNCHARTED_UWP
+    runtime_memory_start_paging();
+#endif
     image = runtime_image_map(round_page(size), PROT_READ | PROT_WRITE);
     if (!image) image = allocate(round_page(size));
     if (fread(image, 1, size, f) != size || fgetc(f) != EOF) fail("incorrect memory image size");

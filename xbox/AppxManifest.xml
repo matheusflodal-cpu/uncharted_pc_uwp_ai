@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+ xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap">
+ <Identity Name="UnchartedUwpProbe" Publisher="CN=UnchartedUwpProbe" Version="0.1.0.0" ProcessorArchitecture="x64"/>
+ <Properties><DisplayName>Uncharted UWP Diagnostic</DisplayName><PublisherDisplayName>Experimental community adaptation</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
+ <Dependencies>
+  <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0"/>
+  <PackageDependency Name="Microsoft.VCLibs.140.00" MinVersion="14.0.30035.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"/>
+ </Dependencies>
+ <Resources><Resource Language="en-us"/></Resources>
+ <Applications>
+  <Application Id="App" Executable="uncharted_uwp.exe" EntryPoint="Uncharted.Uwp.App">
+   <uap:VisualElements DisplayName="Uncharted UWP Diagnostic" Description="CPU and memory diagnostic; gameplay is not implemented"
+    BackgroundColor="#181818" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+    <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#181818"/>
+   </uap:VisualElements>
+   <Extensions><uap:Extension Category="windows.fileTypeAssociation">
+    <uap:FileTypeAssociation Name="uncharteddump"><uap:SupportedFileTypes>
+     <uap:FileType>.bin</uap:FileType><uap:FileType>.elf</uap:FileType><uap:FileType>.prx</uap:FileType><uap:FileType>.sfo</uap:FileType>
+    </uap:SupportedFileTypes></uap:FileTypeAssociation>
+   </uap:Extension></Extensions>
+  </Application>
+ </Applications>
+ <Capabilities><Capability Name="codeGeneration"/><uap:Capability Name="removableStorage"/></Capabilities>
+</Package>

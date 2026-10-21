@@ -1,0 +1,39 @@
+cmake_minimum_required(VERSION 3.24)
+project(uncharted_uwp LANGUAGES C CXX)
+if(NOT WIN32 OR NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+  message(FATAL_ERROR "The UWP target requires Windows SDK and clang-cl on Windows. See xbox/README.md.")
+endif()
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_C_STANDARD_LIBRARIES "")
+set(CMAKE_CXX_STANDARD_LIBRARIES "")
+set(UNCHARTED_ROOT "${CMAKE_CURRENT_LIST_DIR}/..")
+set(UNCHARTED_DEPS "${CMAKE_CURRENT_LIST_DIR}/.local/deps" CACHE PATH "Pinned winpthreads dependencies")
+if(NOT EXISTS "${UNCHARTED_DEPS}/winpthreads/include/pthread.h")
+  message(FATAL_ERROR "Run python xbox/scripts/fetch-deps.py first")
+endif()
+set(cpu_sources runtime runtime_content runtime_file runtime_kernel runtime_memory
+  runtime_mutex runtime_rtc runtime_rwlock runtime_savedata runtime_sema runtime_services
+  runtime_thread runtime_time runtime_fiber compat_win probe)
+list(TRANSFORM cpu_sources PREPEND "${UNCHARTED_ROOT}/src/")
+list(TRANSFORM cpu_sources APPEND ".c")
+add_executable(uncharted_uwp WIN32 platform/main.cpp platform/runtime_compat.c
+  platform/diagnostic_services.c ${cpu_sources})
+target_include_directories(uncharted_uwp PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_ROOT}/src"
+  platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
+target_compile_definitions(uncharted_uwp PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN
+  _CRT_SECURE_NO_WARNINGS _TIMESPEC_DEFINED _MODE_T_)
+target_compile_options(uncharted_uwp PRIVATE /W3
+  $<$<COMPILE_LANGUAGE:C>:/clang:-masm=att> $<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
+target_link_options(uncharted_uwp PRIVATE /APPCONTAINER /HIGHENTROPYVA:NO /STACK:16777216,16777216 /OPT:REF)
+target_link_directories(uncharted_uwp BEFORE PRIVATE "$ENV{VCToolsInstallDir}/lib/x64/store")
+target_link_libraries(uncharted_uwp PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
+set(layout "${CMAKE_BINARY_DIR}/layout")
+add_custom_command(TARGET uncharted_uwp POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${layout}/ThirdParty"
+  COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:uncharted_uwp>" "${layout}"
+  COMMAND ${CMAKE_COMMAND} -E copy "${UNCHARTED_DEPS}/libwinpthread/bin/libwinpthread-1.dll" "${layout}"
+  COMMAND ${CMAKE_COMMAND} -E copy "${UNCHARTED_DEPS}/winpthreads/share/licenses/winpthreads/COPYING" "${layout}/ThirdParty/winpthreads-COPYING.txt"
+  COMMAND ${CMAKE_COMMAND} -E copy "${UNCHARTED_ROOT}/LICENSE" "${layout}/LICENSE.txt"
+  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/CREDITS.md" "${layout}"
+  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/AppxManifest.xml" "${layout}")

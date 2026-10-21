@@ -13,6 +13,7 @@
  * sceFiberRun; they cannot be suspended and start again from their entry next time. */
 #include "runtime.h"
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
