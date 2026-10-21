@@ -461,3 +461,22 @@ Before guest boot, the real Gamepad API is polled for up to five seconds
 This does not fabricate a pad or modify guest pad ABI. A host call stuck
 during this step is bounded by the separate 15-second phase watchdog.
 Windows build, regression and Xbox validation are recorded below when done.
+
+## v0.6.3 Windows CI passed
+
+Code: 062a5820bc09258f57583eee5c05343e6d354f78
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39680411552
+
+Full renderer/app compiled and linked; APPX 0.6.3.0 signed. The real FromApp
+memory harness passed the new guest-source lazy/stale-protection copy
+regression, including byte patterns and read-only destination restoration.
+Swap: 8242 checks, zero corruption; POSIX memory: 32786 checks. Also passed:
+pad 193, boot trace 29, protected dialogs 21, overlay 31, AudioOut 100 plus
+device failure, AJM 4648 with actual MP3 decoding/ATRAC9 initialization, six
+native preparation parity tests, graphics resolution and UWP import allowlist.
+The separate CPU and graphics workflows also passed. The shared input header
+was additionally syntax-checked with the Windows RPC small macro defined.
+
+This validates the memory correction and package on Windows. Real controller
+readiness and the effect on the blocked Xbox DispatchRecord remain unverified
+until a new console boot. No game image, menu or gameplay is established.
