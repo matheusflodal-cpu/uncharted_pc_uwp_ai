@@ -277,7 +277,9 @@ extern "C" int bbgpu_init(const BbGpuConfig* config) {
 #ifdef UNCHARTED_UWP
     // The loader already registered these addresses before --list-missing.
     Libraries::GnmDriver::InitializeDriver();
+    std::puts("UWP GPU startup: GnmDriver ready; initializing VideoOut");
     Libraries::VideoOut::InitializeDriver();
+    std::puts("UWP GPU startup: VideoOut ready");
 #else
     Libraries::GnmDriver::RegisterLib(&resolver);
     Libraries::VideoOut::RegisterLib(&resolver);

@@ -33,6 +33,20 @@ target_compile_definitions(uncharted_pad_contract PRIVATE _TIMESPEC_DEFINED _MOD
 target_link_libraries(uncharted_pad_contract PRIVATE "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
 set(cpu_targets uncharted_uwp uncharted_memory_contract)
 if(UNCHARTED_COMPILE_RENDERER AND UNCHARTED_GRAPHICS_PROBE)
+  add_executable(uncharted_overlay_contract "${UNCHARTED_ROOT}/tests/test_uwp_overlay.cpp"
+    "${UNCHARTED_ROOT}/gpu/third_party/imgui/imgui.cpp"
+    "${UNCHARTED_ROOT}/gpu/third_party/imgui/imgui_draw.cpp"
+    "${UNCHARTED_ROOT}/gpu/third_party/imgui/imgui_tables.cpp"
+    "${UNCHARTED_ROOT}/gpu/third_party/imgui/imgui_widgets.cpp"
+    "${UNCHARTED_ROOT}/gpu/third_party/imgui/backends/imgui_impl_vulkan.cpp")
+  target_include_directories(uncharted_overlay_contract PRIVATE "${UNCHARTED_ROOT}/gpu/shim"
+    "${UNCHARTED_ROOT}/gpu/third_party/imgui" "${UNCHARTED_ROOT}/gpu/third_party/imgui/backends"
+    "${UNCHARTED_DEPS}/vulkan-headers/include")
+  target_compile_definitions(uncharted_overlay_contract PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES NDEBUG
+    IMGUI_DISABLE_WIN32_DEFAULT_CLIPBOARD_FUNCTIONS IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCTIONS
+    IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS)
+  target_compile_options(uncharted_overlay_contract PRIVATE /W3 /EHsc)
+  target_link_libraries(uncharted_overlay_contract PRIVATE WindowsApp)
   add_executable(uncharted_renderer_contract platform/memory_contract_host.c platform/runtime_compat.c
     platform/diagnostic_services.c graphics/resolver_contract.cpp graphics/present_bridge.cpp ${cpu_sources})
   target_compile_definitions(uncharted_renderer_contract PRIVATE UNCHARTED_RESOLVER_CONTRACT UNCHARTED_LINK_RENDERER VK_USE_PLATFORM_WIN32_KHR)
@@ -58,6 +72,7 @@ endforeach()
 # CRT; only the installed UWP app resolves CRT imports through the VCLibs framework.
 target_link_directories(uncharted_uwp BEFORE PRIVATE "$ENV{VCToolsInstallDir}/lib/x64/store")
 target_link_options(uncharted_uwp PRIVATE /APPCONTAINER)
+target_link_options(uncharted_uwp PRIVATE "/MAP:${CMAKE_BINARY_DIR}/uncharted_uwp.map")
 target_link_libraries(uncharted_memory_contract PRIVATE psapi)
 add_custom_command(TARGET uncharted_memory_contract POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy "${UNCHARTED_DEPS}/libwinpthread/bin/libwinpthread-1.dll" "$<TARGET_FILE_DIR:uncharted_memory_contract>")

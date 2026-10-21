@@ -6,6 +6,19 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
+## Teste atual (0.5.1)
+
+Veja [LEIA-ME-0.5.1.txt](LEIA-ME-0.5.1.txt). Atualize o pacote e escolha
+**Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
+tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
+
+A 0.5.1 impede que o overlay inicialize com uma tabela Vulkan incompleta.
+Se uma função necessária ao menu estiver ausente, o overlay é desabilitado
+com uma mensagem explícita; o renderizador continua sua inicialização.
+A apresentação do Xbox continua usando a ponte D3D12/CoreWindow.
+Esta correção ainda precisa ser confirmada no console e não completa os
+serviços de áudio, rede/PSN ou sistema que o jogo possa solicitar.
+
 ## Etapas
 
 | Versão | Conteúdo | Validação no Xbox |
@@ -15,7 +28,8 @@ A adaptação usa componentes de Cosmo/gow3_xbox
 | 0.3 | Renderizador ligado ao host; testes sintéticos de shaders e texturas | Log do testador: cópias, detile, amostragem e storage images sem erros; resultado 0 |
 | 0.4 | Preparação nativa do dump no Xbox, busca no USB e menu de teste de boot | Log do testador: preparação de Uncharted 3 passou; imports pendentes |
 | 0.4.1 | Registro das funções gráficas antes do diagnóstico de imports | Log do testador: pendências caíram de 124 para 59 |
-| 0.5 | Controle nativo, teste físico e memória POSIX anônima | Pendente |
+| 0.5 | Controle nativo, teste físico e memória POSIX anônima | Controle: 949 amostras, zero erros; vibração confirmada pelo testador. Boot parou na inicialização gráfica |
+| 0.5.1 | Verificação do carregamento do overlay e logs de inicialização gráfica | Pendente de novo teste de boot |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -34,7 +48,7 @@ próximas implementações necessárias. Resultado 20 informa imports ausentes.
 
 **Tentar iniciar** passa o executável preparado ao runtime com o renderizador
 ligado. Essa tentativa ainda não valida gameplay. Áudio continua sem implementação. A 0.5 liga o serviço de controle nativo; seu
-funcionamento físico no Xbox e durante o jogo ainda precisa ser validado.
+funcionamento físico e a vibração foram confirmados no teste dedicado. O uso durante o jogo ainda não foi validado.
 
 O preparador compara byte por byte com os scripts originais em fixtures sintéticas:
 imports de todas as bibliotecas conhecidas, bindings nativos, TLS, relocações,

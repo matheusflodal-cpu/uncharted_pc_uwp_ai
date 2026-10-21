@@ -14,6 +14,7 @@
 #include "bbport_settings.h"
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
+#include "bbport_overlay_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 
@@ -485,14 +486,6 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
                                    int(bb_font_ttf_end - bb_font_ttf), 18.0f, &font_config);
 
     const vk::Instance vk_instance = instance.GetInstance();
-    ImGui_ImplVulkan_LoadFunctions(
-        instance.ApiVersion(),
-        [](const char* name, void* user) {
-            return VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr(
-                *static_cast<const vk::Instance*>(user), name);
-        },
-        const_cast<vk::Instance*>(&vk_instance));
-
     const VkFormat color_format = static_cast<VkFormat>(format);
     ImGui_ImplVulkan_InitInfo info{};
     info.ApiVersion = instance.ApiVersion();
@@ -510,7 +503,11 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
         .colorAttachmentCount = 1,
         .pColorAttachmentFormats = &color_format,
     };
-    if (!ImGui_ImplVulkan_Init(&info)) {
+    if (!InitializeVulkanBackend(info,
+        [](const char* name, void* user) {
+            return VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr(
+                *static_cast<const vk::Instance*>(user), name);
+        }, const_cast<vk::Instance*>(&vk_instance))) {
         std::printf("Overlay: ImGui Vulkan backend init failed\n");
         ImGui::DestroyContext();
         return;
@@ -634,7 +631,7 @@ bool Visible() {
 }
 
 bool CapturesInput() {
-    return menu_open || text_entry_active;
+    return initialized && (menu_open || text_entry_active);
 }
 
 void SetTextEntry(bool active, const std::string& prompt, const std::string& text) {

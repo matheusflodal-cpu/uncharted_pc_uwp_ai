@@ -226,6 +226,17 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"Fault: exception 0x%08lx at %s (thread %lu)\n",record->ExceptionCode,where,GetCurrentThreadId());
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
+    /* A null indirect call has already pushed its return address. Optimized
+       host code may have no rbp chain, so preserve that candidate separately. */
+    if (!c->Rip && c->Rsp) {
+        uintptr_t candidate=0;
+        SIZE_T got=0;
+        if (ReadProcessMemory(GetCurrentProcess(),(void *)(uintptr_t)c->Rsp,
+                              &candidate,sizeof(candidate),&got) && got==sizeof(candidate)) {
+            describe_address(where,sizeof(where),candidate);
+            fprintf(stderr,"  null-call return-address candidate: %s\n",where);
+        }
+    }
     if (gpu_enabled) bbgpu_dump_guest_writes(info);
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;

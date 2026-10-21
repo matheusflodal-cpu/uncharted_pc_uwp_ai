@@ -165,11 +165,22 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
 #endif
     // bbport: frames are composed in RGBA8 (what frame generation reads and writes) and
     // blitted into the swapchain's format.
+#ifdef UNCHARTED_UWP
+    std::puts("UWP GPU startup: creating post-processing pipeline");
+#endif
     pp_pass.Create(device, FrameGenerator::ColorFormat);
+#ifdef UNCHARTED_UWP
+    std::puts("UWP GPU startup: post-processing ready; initializing optional overlay");
+#endif
     BbOverlay::Init(instance, swapchain.GetSurfaceFormat().format, num_images);
-
+#ifdef UNCHARTED_UWP
+    std::puts("UWP GPU startup: optional overlay initialization returned");
+#endif
     frame_generator = std::make_unique<FrameGenerator>(instance, draw_scheduler);
     rasterizer->GetUpscaler().SetFrameGenerator(frame_generator.get());
+#ifdef UNCHARTED_UWP
+    std::puts("UWP GPU startup: presenter constructed");
+#endif
 }
 
 Presenter::~Presenter() {

@@ -199,3 +199,44 @@ Code: `e896471a4a48785ce03258ccd3d812bd43fd68fb`.
 This validates the build and tested contracts, not the WinRT controller on Xbox
 or real Uncharted boot/gameplay. The 20-second physical probe and game boot logs
 are the next console checks. Audio and other listed guest APIs remain pending.
+
+## Xbox v0.5 physical input and attempted boot (2026-10-21)
+
+The tester's dedicated controller log reports PASS: 949 connected samples,
+zero errors, face buttons observed, both stick axes reaching 0..255 and both
+triggers reaching 255. The tester separately confirmed feeling the vibration.
+This validates the dedicated input path, not input during gameplay.
+
+The subsequent Uncharted 3 boot prepared big3-ps4_Shipping.elf successfully
+(boot=33391052, content=28), detected Dozen on SraKmd_arden, and constructed
+the 1920x1080 CoreWindow bridge. It then reported an execute fault at address
+zero during GPU initialization, before the loader's GPU-ready message or
+guest execution. No out-of-memory failure was reported.
+
+## v0.5.1 overlay startup correction
+
+Source inspection found that BbOverlay::Init ignored the return value of
+ImGui_ImplVulkan_LoadFunctions. The bundled backend requires desktop WSI
+entry points even when used with externally managed images. A missing entry
+ends loading early, leaving later function pointers null; release assertions
+are disabled. ImGui_ImplVulkan_Init would then use that incomplete table.
+This is a concrete crash path consistent with the Xbox log; the original log
+does not identify the exact missing function or prove this was the only cause.
+
+The corrected caller checks the actual backend loader, including its dynamic
+rendering lookups and core-to-KHR fallback, before backend initialization.
+Missing functions disable only the overlay with a named diagnostic. Failed
+overlay initialization cannot capture game input. Additional presenter and
+driver milestones distinguish post-processing, overlay, and VideoOut startup.
+Null-call crash reports retain the return-address candidate from the stack,
+and CI archives a matching linker map for host symbol lookup.
+
+The regression harness compiles the actual bundled ImGui Vulkan backend with
+NDEBUG and injected missing entry points. It covers early/late table failures,
+WSI, missing dynamic-rendering functions, valid Vulkan 1.2 KHR fallback, core
+1.3 functions, and failure after a previous complete load. It requires partial
+loads to return without initializing backend state or calling any GPU function.
+Local validation passed: 31 overlay loader checks, 187 pad checks, 32786
+POSIX memory checks, the existing C I/O checks, and 44 Python tests.
+Windows compilation/package checks and Xbox boot confirmation are pending
+for this revision until recorded below.
