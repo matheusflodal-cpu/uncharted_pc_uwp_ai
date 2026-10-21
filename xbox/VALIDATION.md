@@ -413,3 +413,20 @@ queue states, disabled/out-of-range safety, bounded reader calls and a real
 coroutine suspended with a live wait), 193 pad checks (including non-blocking
 snapshot of a busy service and host error counters), and the existing audio,
 dialog, POSIX memory and 44 Python tests.
+
+## v0.6.2 Windows CI passed
+
+Code: fa9e3bc93d898178ba965cae8b43e4df0fefe06e
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39674690818
+
+The full renderer/app compiled and linked. Passed on Windows: boot trace
+29 checks, pad 193, overlay 31, protected dialogs 21, AudioOut 100 plus
+device failure, AJM 4648 with actual MP3 decoding and ATRAC9 initialization,
+native preparation parity six tests, graphics import resolution, swap
+8242 checks with zero corruption, and POSIX memory 32786 checks. UWP import
+validation and signing of APPX 0.6.2.0 succeeded. Separate CPU and graphics
+build workflows also succeeded.
+
+These results validate the build and host contracts. The added recording,
+tiling, PM4 and controller traces need the next Xbox boot attempt; no fix
+for the black screen or playable game has been established.
