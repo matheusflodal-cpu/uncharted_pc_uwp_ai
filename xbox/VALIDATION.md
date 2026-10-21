@@ -104,3 +104,23 @@ Together with existing CPU/I/O coverage, all 44 Python tests passed.
 The 0.4 UI, USB discovery and preparation have not yet run on Xbox.
 Real guest initialization, game shaders, audio, input and gameplay remain
 unvalidated. Compilation/signing and portable fixtures do not establish them.
+
+## Native preparation 0.4 — Windows build validated
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39540766217
+Code commit: `9bdbe239e769f30229c820ba1585b7e98adb5a28`.
+
+- The UWP host, popup menus, native preparer and full renderer compiled and linked.
+- All six native/Python parity methods passed on Windows.
+- The same UWP memory backend passed 8242 checks, zero corruption, result 0.
+- UWP import verification, MakeAppx and SHA-256 signing passed for 0.4.0.0.
+- Linux ASan/UBSan also passed the six preparation methods. LeakSanitizer was
+  disabled because this execution environment blocks its process inspection.
+
+These are host/fixture checks; USB discovery, native preparation of a real dump
+and guest boot on Xbox still require the tester's logs.
+
+The final USB-fallback code also passed the same full Windows pipeline:
+https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39541060331
+Code commit: `eb5e4cda7db0ca33a0f57bc6e6b94d22af73a7fc`.
+The signed 0.4.0.0 package delivered for testing is from this run.
