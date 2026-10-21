@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.1)
+## Teste atual (0.6.2)
 
-Veja [LEIA-ME-0.6.1.txt](LEIA-ME-0.6.1.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.2.txt](LEIA-ME-0.6.2.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -22,10 +22,21 @@ A 0.6 integra AudioOut e os decodificadores originais AJM ATRAC9/MP3.
 O teste dedicado de som foi confirmado fisicamente no Xbox: 375 buffers,
 48 kHz estéreo e resultado 0. No boot, três portas e o contexto AJM abriram.
 O jogo solicitou shaders gráficos e compute, mas a tela permaneceu preta
-até o limite de 90 segundos. A 0.6.1 registra início e retorno dessas etapas,
-filas e mensagens, com resumos a cada 5 segundos e limite de boot de 300
-segundos. Não é necessário repetir áudio ou controle. Rede/PSN e outros
-serviços continuam pendentes; nenhum menu ou gameplay foi confirmado.
+até o limite de 90 segundos. No teste 0.6.1, seis pipelines foram pré-carregados,
+as chamadas estabilizaram em 9 draws e 4 dispatches aos 5 segundos, sem pedido
+de flip do jogo até os 300 segundos. A memória ficou perto de 2,4 GiB de 5 GiB;
+não houve esgotamento registrado. O jogo também pediu uma mensagem de controle
+não detectado. Isso não identifica por si só a causa da tela preta.
+
+A 0.6.2 cobre uma lacuna: criação do pipeline de tiling/detiling usa um caminho
+próprio fora das medições anteriores. Acrescenta início/retorno nesse caminho,
+no registro de draws/dispatches, contadores de comandos PM4 por fila e os
+operandos das esperas observados pelo processador de comandos. O monitor não
+lê memória guest nem consulta a GPU. O controle registra abertura e resultados
+reais do host; uma falha de conexão não é convertida em conexão fictícia.
+O limite continua em 300 segundos. Não é necessário repetir áudio ou controle.
+Rede/PSN e outros serviços continuam pendentes; nenhum menu ou gameplay foi
+confirmado.
 
 ## Etapas
 
@@ -39,7 +50,8 @@ serviços continuam pendentes; nenhum menu ou gameplay foi confirmado.
 | 0.5 | Controle nativo, teste físico e memória POSIX anônima | Controle: 949 amostras, zero erros; vibração confirmada pelo testador. Boot parou na inicialização gráfica |
 | 0.5.1 | Verificação do carregamento do overlay e logs de inicialização gráfica | Xbox executou código do jogo; parou em sceAudioOutInit |
 | 0.6 | AudioOut via XAudio2, AJM ATRAC9/MP3 e teste de som | Tom ouvido no Xbox; boot abriu áudio/AJM e chegou a shaders reais; watchdog de 90 s encerrou |
-| 0.6.1 | Medições de compilação, filas, CPU/RAM e mensagens do jogo; teste de boot de 5 min | Pendente |
+| 0.6.1 | Medições de compilação, CPU/RAM e mensagens do jogo; teste de boot de 5 min | 9 draws/4 dispatches estáveis, zero flip do jogo, aviso de controle; watchdog de 300 s |
+| 0.6.2 | Medições do driver de tiling, registro de comandos, esperas PM4 e controle durante o boot | Pendente |
 
 Na versão 0.3, áudio, controle do jogo e serviços online ainda não estão ligados.
 Imports de PS4 indisponíveis permanecem sem endereço e são identificados pelo
@@ -57,7 +69,7 @@ não exige Python no PC. Traga `loader.log` e `errors.log` para identificar as
 próximas implementações necessárias. Resultado 20 informa imports ausentes.
 
 **Tentar iniciar** passa o executável preparado ao runtime com o renderizador
-ligado. Essa tentativa ainda não valida gameplay. Áudio continua sem implementação. A 0.5 liga o serviço de controle nativo; seu
+ligado. Essa tentativa ainda não valida gameplay. A 0.6 integra áudio nativo. A 0.5 liga o serviço de controle nativo; seu
 funcionamento físico e a vibração foram confirmados no teste dedicado. O uso durante o jogo ainda não foi validado.
 
 O preparador compara byte por byte com os scripts originais em fixtures sintéticas:
@@ -105,7 +117,7 @@ quando a preparação falha. Não altera o dump.
 
 O script `python xbox/scripts/prepare-game.py --help` continua disponível para
 inspeção privada no PC, mas deixou de ser necessário para esse fluxo no Xbox.
-Os watchdogs são 5 minutos para preparação e, na 0.6.1, 5 minutos para boot;
+Os watchdogs são 5 minutos para preparação e, a partir da 0.6.1, 5 minutos para boot;
 o diagnóstico de imports mantém 90 segundos; o menu não tem limite. O teste gráfico mantém limite de 60 segundos.
 
 ## Compilar

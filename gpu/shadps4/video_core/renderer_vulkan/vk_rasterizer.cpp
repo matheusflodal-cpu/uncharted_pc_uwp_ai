@@ -1287,6 +1287,9 @@ static bool SkipShader(u64 hash) {
 
 void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw* used_prepared,
                             bool is_indexed, u32 index_offset) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope record_trace(UnchartedBootTrace::Kind::DrawRecord,0,reinterpret_cast<uintptr_t>(this));
+#endif
     if (DrawPipe::OnStageB()) {
         FrameCapture::Poll();
         scheduler.PopPendingOperations();
@@ -1808,6 +1811,9 @@ void Rasterizer::DispatchDirect() {
 }
 
 void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope record_trace(UnchartedBootTrace::Kind::DispatchRecord,0,reinterpret_cast<uintptr_t>(this));
+#endif
     FrameCapture::Poll();
     gbuffer_draw = false;
 

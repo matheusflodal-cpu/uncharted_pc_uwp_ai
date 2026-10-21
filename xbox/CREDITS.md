@@ -69,3 +69,7 @@ The bounded MsgDialog diagnostic prefix layout was checked against shadPS4
 `src/core/libraries/system/msgdialog_ui.h` (GPL-2.0-or-later). The observer
 and timed, lock-free boot trace are new GPL-2.0-or-later integration code.
 They do not implement or draw the guest's message UI.
+
+The v0.6.2 diagnostic additions measure the existing shadPS4/bbport PM4 queue,
+tiling pipeline and draw recording paths. The command semantics and existing
+native controller mapping are retained; the new trace code is GPL-2.0-or-later.

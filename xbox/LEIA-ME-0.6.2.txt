@@ -1,0 +1,29 @@
+UNCHARTED UWP 0.6.2 — ESPERAS DE COMANDOS E CONTROLE NO BOOT
+
+Ainda nao ha menu ou gameplay confirmado. Nao inclui o jogo.
+O teste anterior ficou em 9 draws/4 dispatches, sem flip do jogo ate 300 s.
+A RAM ficou perto de 2,4 GiB de 5 GiB. O jogo pediu um aviso de controle nao
+conectado. A causa da tela preta ainda nao foi identificada.
+
+INSTALAR E TESTAR
+1. Extraia o ZIP e atualize o .appx pelo Device Portal. Se pedido, inclua
+   VCLibs em Dependencies. Mantenha o mesmo dump no pendrive.
+2. Mantenha o controle ligado. Se um run.txt antigo pular o menu, use o
+   arquivo da pasta Opcoes. Nao precisa repetir o teste de som ou de botoes.
+3. Escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+4. Aguarde ate CINCO MINUTOS depois da preparacao. O teste ainda encerra ao
+   atingir esse limite. Se fechar antes, guarde os logs.
+5. Envie loader.log E errors.log sem reabrir o app antes de copia-los.
+
+O QUE MUDOU
+A criacao do pipeline que reorganiza texturas tinha um caminho proprio,
+fora das medicoes anteriores. Agora esse caminho e sua chamada ao driver
+registram inicio/retorno. O registro de draws e dispatches tambem e medido.
+As filas PM4 mostram ultimo comando, contadores e operandos das esperas.
+Os valores sao amostras coletadas pelo processador de comandos; o monitor
+nao acessa ponteiros do jogo nem consulta a GPU. Uma espera pode manter a
+ultima amostra antiga. O log indica se houve amostra e sua idade.
+O servico de controle registra abertura, conexao, leituras e erros reais.
+A coleta do controle e pulada se o servico estiver ocupado.
+Esta versao acrescenta diagnostico; nao confirma uma correcao da tela preta.
+Nao precisa copiar o jogo novamente nem alterar o dump.

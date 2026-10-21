@@ -13,11 +13,13 @@ namespace UnchartedBootTrace {
 using U64 = unsigned long long;
 enum class Kind { Shader, Translate, Spirv, Graphics, Compute, DriverGraphics,
     DriverCompute, Submit, RecordSync, CopyWait, DriverSubmit, GpuWait, DrawDrain,
-    BridgeAcquire, BridgePresent, TimelineQuery, Count };
+    BridgeAcquire, BridgePresent, TimelineQuery, TilingPipeline, DriverTiling,
+    DrawRecord, DispatchRecord, Count };
 inline constexpr const char* names[] = {"shader", "translate", "spirv", "graphics_pipeline",
     "compute_pipeline", "driver_graphics", "driver_compute", "scheduler_submit",
     "record_sync", "copy_wait", "driver_submit", "gpu_wait", "draw_drain",
-    "bridge_acquire", "bridge_present", "timeline_query"};
+    "bridge_acquire", "bridge_present", "timeline_query", "tiling_pipeline",
+    "driver_tiling", "draw_record", "dispatch_record"};
 struct Counter { std::atomic<U64> started{0}, ended{0}, failed{0}, active{0}; };
 struct Slot {
     std::atomic<unsigned> state{0}, kind{0}; // free, initializing, active
@@ -31,6 +33,48 @@ inline std::atomic<bool> enabled{false};
 inline std::atomic<U64> origin{0}, untracked{0}, draws{0}, dispatches{0}, flips{0};
 inline U64 Now() { return static_cast<U64>(std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::steady_clock::now().time_since_epoch()).count()); }
+// Single command processor publishes samples. The monitor reads only atomics,
+// never a guest address or a renderer queue/container. Values are best-effort.
+struct Pm4Queue {
+    std::atomic<U64> submitted{0}, resumed{0}, completed{0}, packets{0};
+    std::atomic<U64> opcode{0}, packet{0}, packet_time{0};
+    std::atomic<U64> waiting{0}, wait_time{0}, address{0}, value{0}, ref{0}, mask{0}, function{0}, polls{0}, sampled{0};
+};
+inline std::array<Pm4Queue,64> pm4;
+enum class QueueEvent { Submit, Resume, Complete };
+inline void NoteQueue(unsigned q,QueueEvent event) {
+    if(!enabled.load(std::memory_order_relaxed)||q>=pm4.size()) return;
+    auto& t=pm4[q];
+    if(event==QueueEvent::Submit) ++t.submitted;
+    else if(event==QueueEvent::Resume) ++t.resumed;
+    else ++t.completed;
+}
+inline void NotePacket(unsigned q,U64 opcode,U64 address) {
+    if(!enabled.load(std::memory_order_relaxed)||q>=pm4.size()) return;
+    auto& t=pm4[q];t.opcode=opcode;t.packet=address;t.packet_time=Now();++t.packets;
+}
+// Reason: 1 memory, 2 register, 3 video label, 4 semaphore, 5 rewind.
+// A coroutine keeps this object alive while suspended. Poll samples at most
+// once per second; its reader executes on the command thread, not the monitor.
+class QueueWait {
+    Pm4Queue* trace=nullptr;U64 polls=0,next=0;
+public:
+    QueueWait(unsigned q,U64 reason,U64 address,U64 ref=0,U64 mask=0,U64 function=0) {
+        if(!enabled.load(std::memory_order_acquire)||q>=pm4.size()) return;
+        trace=&pm4[q];trace->wait_time=Now();trace->address=address;
+        trace->ref=ref;trace->mask=mask;trace->function=function;
+        trace->polls=0;trace->sampled=0;trace->waiting.store(reason,std::memory_order_release);
+    }
+    QueueWait(const QueueWait&)=delete;QueueWait& operator=(const QueueWait&)=delete;
+    template<class Reader> void Poll(Reader&& read) {
+        if(!trace) return;
+        ++polls;
+        if(polls!=1 && (polls&4095)) return;
+        const U64 now=Now();if(now<next) return;
+        trace->value=static_cast<U64>(read());trace->polls=polls;trace->sampled=now;next=now+1000;
+    }
+    ~QueueWait() { if(trace) trace->waiting.store(0,std::memory_order_release); }
+};
 inline void Enable() { origin=Now(); enabled.store(true,std::memory_order_release); }
 inline void Count(std::atomic<U64>& counter) {
     if(enabled.load(std::memory_order_relaxed)) counter.fetch_add(1,std::memory_order_relaxed);
@@ -93,6 +137,19 @@ inline void Snapshot(FILE* out=stdout) {
     for(const auto& t:timelines) if(t.owner.load())
         std::fprintf(out,"  cached_timeline owner=0x%llx cpu_next=%llu gpu_known=%llu\n",
             t.owner.load(),t.cpu.load(),t.gpu.load());
+    for(unsigned q=0;q<pm4.size();++q) {
+        const auto& t=pm4[q];if(!t.submitted.load()&&!t.packets.load()) continue;
+        const U64 at=t.packet_time.load();
+        std::fprintf(out,"  pm4_queue=%u submitted=%llu resumed=%llu completed=%llu packets=%llu last_opcode=0x%llx packet=0x%llx packet_age=%llu ms\n",
+            q,t.submitted.load(),t.resumed.load(),t.completed.load(),t.packets.load(),
+            t.opcode.load(),t.packet.load(),at&&now>=at?now-at:0);
+        if(const U64 reason=t.waiting.load(std::memory_order_acquire)) {
+            const U64 began=t.wait_time.load(),sample=t.sampled.load();
+            std::fprintf(out,"    pm4_wait reason=%llu address_or_reg=0x%llx cached_value=0x%llx ref=0x%llx mask=0x%llx function=%llu age=%llu ms sampled=%s sample_age=%llu ms polls_at_sample=%llu\n",
+                reason,t.address.load(),t.value.load(),t.ref.load(),t.mask.load(),t.function.load(),
+                now>=began?now-began:0,sample?"yes":"no",sample&&now>=sample?now-sample:0,t.polls.load());
+        }
+    }
     // Best-effort atomic snapshots only: never acquire a renderer/driver lock
     // or query Vulkan from the watchdog. Concurrent entries can change here.
     for(const auto& s:slots) if(s.state.load(std::memory_order_acquire)==2) {

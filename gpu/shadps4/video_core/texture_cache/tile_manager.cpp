@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -87,6 +90,10 @@ TileManager::TileManager(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
 TileManager::~TileManager() = default;
 
 vk::Pipeline TileManager::GetTilingPipeline(const ImageInfo& info, bool is_tiler) {
+#ifdef UNCHARTED_UWP
+    const auto trace_id=(u64(info.tile_mode)<<32)|(u64(info.num_bits)<<16)|(u64(info.num_samples)<<1)|u64(is_tiler);
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::TilingPipeline,trace_id,reinterpret_cast<uintptr_t>(this));
+#endif
     const TilingKey key{
         .tile_mode = info.tile_mode,
         .num_bits = info.num_bits,
@@ -183,8 +190,12 @@ vk::Pipeline TileManager::GetTilingPipeline(const ImageInfo& info, bool is_tiler
         .layout = *pl_layout,
     };
 
-    auto [result, pipeline] =
-        device.createComputePipelineUnique(VK_NULL_HANDLE, compute_pipeline_ci);
+    auto [result, pipeline] = [&] {
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope driver_trace(UnchartedBootTrace::Kind::DriverTiling,trace_id,reinterpret_cast<uintptr_t>(this));
+#endif
+        return device.createComputePipelineUnique(VK_NULL_HANDLE, compute_pipeline_ci);
+    }();
     ASSERT_MSG(result == vk::Result::eSuccess, "Detiler pipeline creation failed {}",
                vk::to_string(result));
     const auto handle = *pipeline;

@@ -368,3 +368,48 @@ The downloaded renderer artifact SHA-256 matches the GitHub Actions digest:
 These are host build/contract results. The five-minute boot and diagnostic
 output still require a new Xbox attempt; they do not establish a fix for
 the black screen, an actual game image, menu or gameplay.
+
+## Xbox v0.6.1: stable command counts and a controller alert
+
+Attachments: loader.log (3).txt and errors.log (1).txt. The boot reached the
+300-second diagnostic watchdog. At 5.114 s, draws=9, dispatches=4 and
+flip_requests=0; these remained unchanged through 300.102 s. Every measured
+scope had returned, with no pending measured operation. Memory settled at
+2411/5120 MiB (first guest heartbeat 2513 MiB), so the samples do not suggest
+budget exhaustion. Process CPU increased about 25 s per 5 s wall time; this
+is aggregate CPU time, not a per-thread attribution or proof of a spin loop.
+Six pipelines were preloaded, which explains why shader compilation scopes
+need not appear in this attempt. The final GPU message was creation of the
+Thin2DThin_64 detiler. That path called createComputePipelineUnique directly
+and was not covered by the previous driver compilation scopes. A blocked
+call there remains a hypothesis, not an established cause.
+
+MsgDialog logged: Wireless controller not detected. Please check connection
+and battery levels for the wireless controller. No pad service call history
+was present. The physically validated standalone input probe does not prove
+that the game's own opening/read sequence succeeded. No menu, game image
+or gameplay was confirmed.
+
+## v0.6.2: cover remaining recording/wait blind spots
+
+Adds UWP-only scopes around the tiling pipeline path and its actual driver
+creation call, plus DrawRecord/DispatchRecord. PM4 telemetry records submitted,
+resumed/completed coroutine tasks, packets and last opcode/address per virtual
+queue. Wait records cover graphics/compute memory or register comparisons,
+video labels, memory semaphores and rewind-valid waits. The comparison,
+scheduling, fence signalling and draw behavior are unchanged. Observations
+are bounded atomic samples; no monitor-side guest reads, queue locks or GPU
+queries. Command-thread wait sampling is rate-limited and may be stale while
+a task is suspended. Snapshots are best-effort, not coherent transactions.
+
+Native pad diagnostics retain real host results, report initial opening/info
+calls and bounded read errors, and publish counters via trylock: the watchdog
+skips a busy service rather than waiting for it. No forced connection,
+repeated test requirement or timeout increase was introduced. The new build
+and Xbox behavior require validation recorded below.
+
+Local v0.6.2 contracts passed: 29 boot-trace checks (including independent
+queue states, disabled/out-of-range safety, bounded reader calls and a real
+coroutine suspended with a live wait), 193 pad checks (including non-blocking
+snapshot of a busy service and host error counters), and the existing audio,
+dialog, POSIX memory and 44 Python tests.

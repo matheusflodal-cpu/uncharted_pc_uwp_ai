@@ -60,6 +60,13 @@ int main(void) {
     CHECK(pad_reset_lightbar(1)==0&&lightbar[0]==0&&lightbar[2]==255);
     vibration_status=1; CHECK(pad_close(1)==0&&large_motor==0&&small_motor==0&&vibrations>=4);
     CHECK(read(1,data,1)==INVALID_HANDLE); CHECK(pad_close(1)==INVALID_HANDLE);
+    CHECK(boot.opens==5&&boot.last_user==1&&boot.last_open==ALREADY_OPENED);
+    CHECK(boot.host_absent>=2&&boot.host_errors==1&&boot.read_errors==4);
+    FILE* log=tmpfile();CHECK(log!=NULL);
+    pthread_mutex_lock(&lock);runtime_pad_boot_snapshot(log);pthread_mutex_unlock(&lock);
+    rewind(log);char line[1024];CHECK(fgets(line,sizeof(line),log)&&strstr(line,"service busy; snapshot skipped"));
+    fclose(log);log=tmpfile();CHECK(log!=NULL);runtime_pad_boot_snapshot(log);rewind(log);
+    CHECK(fgets(line,sizeof(line),log)&&strstr(line,"opened=0")&&strstr(line,"host_errors=1"));fclose(log);
     printf("Native pad contract: PASS checks=%u; ABI, mappings, errors, hotplug and rumble routing\n",checks);
     return 0;
 }

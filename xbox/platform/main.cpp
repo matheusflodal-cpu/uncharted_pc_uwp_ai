@@ -27,6 +27,7 @@ extern "C" int uncharted_probe_main(int argc,char **argv);
 #ifdef UNCHARTED_GUEST_INPUT
 int UnchartedInputProbe();
 int UnchartedAudioProbe();
+extern "C" void runtime_pad_boot_snapshot(FILE*);
 #endif
 extern "C" FILE *uncharted_uwp_fopen(const char*,const char*);
 #ifdef UNCHARTED_GRAPHICS_PROBE
@@ -192,7 +193,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.1 — timed GPU boot trace and protected dialog diagnostics");
+    std::puts("Uncharted UWP 0.6.2 — PM4 waits, tiling driver trace and guest controller diagnostics");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -214,7 +215,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6.1",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.2",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {
@@ -343,6 +344,9 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
                 const auto now=GetTickCount64();
                 if(UnchartedBootTrace::enabled.load() && now-last>=5000) {
                     UnchartedBootTrace::Snapshot();
+#ifdef UNCHARTED_GUEST_INPUT
+                    runtime_pad_boot_snapshot(stdout);
+#endif
                     try {
                         std::printf("UWP boot memory: %llu / %llu MiB\n",uncharted_uwp_app_memory_usage()>>20,uncharted_uwp_app_memory_limit()>>20);
                     } catch(...) { std::puts("UWP boot memory: query unavailable"); }
@@ -359,6 +363,9 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
                 if(limit&&GetTickCount64()>limit) {
                     std::fprintf(stderr,"STOP: diagnostic phase watchdog phase=%s\n",phase.load());
                     UnchartedBootTrace::Snapshot();
+#ifdef UNCHARTED_GUEST_INPUT
+                    runtime_pad_boot_snapshot(stdout);
+#endif
                     std::fflush(nullptr); TerminateProcess(GetCurrentProcess(),124);
                 }
                 Sleep(100);
