@@ -29,9 +29,11 @@ target_compile_definitions(${cpu_target} PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LE
 target_compile_options(${cpu_target} PRIVATE /W3
   $<$<COMPILE_LANGUAGE:C>:/clang:-masm=att> $<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
 target_link_options(${cpu_target} PRIVATE /HIGHENTROPYVA:NO /STACK:16777216,16777216 /OPT:REF)
-target_link_directories(${cpu_target} BEFORE PRIVATE "$ENV{VCToolsInstallDir}/lib/x64/store")
 target_link_libraries(${cpu_target} PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
 endforeach()
+# The desktop harness runs outside package activation, so it uses the desktop
+# CRT; only the installed UWP app resolves CRT imports through the VCLibs framework.
+target_link_directories(uncharted_uwp BEFORE PRIVATE "$ENV{VCToolsInstallDir}/lib/x64/store")
 target_link_options(uncharted_uwp PRIVATE /APPCONTAINER)
 target_link_libraries(uncharted_memory_contract PRIVATE psapi)
 add_custom_command(TARGET uncharted_memory_contract POST_BUILD
