@@ -1064,3 +1064,56 @@ callbacks add work and may affect timing; each host thread retains only its
 last observed wait, not a complete per-fiber dependency graph. Actual worker
 wait samples, the pending job identity and relation to DEVICE_HUNG remain to
 be checked. No menu/gameplay confirmation or GPU-hang fix is claimed.
+
+
+## v0.6.13 Xbox result and v0.6.14 image subresource correction
+
+Inputs read-only: loader.log (12).txt and errors.log (10).txt. Package 0.6.13,
+game 3, normal/serial/task-trace on. Both big3-v2 sites installed. At 5066 ms,
+worker samples observed loading-state object 0x1200105000 satisfying target
+10 (caller 0x55f03f) and target 9 (caller 0x55f74f), signed <= mode. These
+samples establish satisfied predicates at those moments, not global boot
+completion. At 10096..30466 ms main observed object 0x1200105580, current 1,
+target 0, equality, caller 0x88c5d7. Workers' final cooperative observations
+were current=target=0 and about 4640..4718 ms old. They are per-host-thread
+last samples, not a full per-fiber stack or proof no other wait exists.
+Counter entries can be recycled: an earlier zero at the same address does
+not identify the same task generation. Main's persistent one coexisted with
+ongoing graphics, so it is not established as the cause of the hang.
+
+Final snapshot 30466 ms: 8057 draws, 4706 dispatches, 757 flip requests;
+25384 ms had 7877/4638/755, so some graphics progressed after that snapshot.
+Bridge acquire pending 4713 ms, scheduler submit 4640 ms. Native status
+0x887a0006 DEVICE_HUNG again; DRED unsupported. Memory 4159/5120 MiB, swap
+unused, I/O active/errors 0/0. There is no named missing-import STOP. This
+does not establish a RAM exhaustion or a CPU job-system fix.
+
+Static graphics review found reproducible invalid region construction:
+- CopyMip uses destination baseArrayLayer=slice but SanitizeCopyLayers takes
+  min(total source layers,total destination layers), ignoring that base.
+  A two-layer source and three-layer destination at slice 2 would request
+  layers 2..3, crossing the destination bound (valid layers 0..2).
+- ResolveImage uses all image layers despite selected view layer counts,
+  always mip 0 and full source dimensions. Four-layer images with a one-layer
+  view at source base 3 would request 3+4>4, and selected mip 2 was ignored.
+
+Version 0.6.14 shares overflow-safe metadata helpers with the contract.
+CopyMip bounds non-3D array copies by the available destination tail; 3D paths
+are unchanged. ResolveImage uses the selected mip, base and common layer
+count for both its copy and multisample resolve paths, with dimensions bounded
+by both selected mips. Empty/invalid attachment ranges fail before recording.
+It does not skip draws or force a successful device status. The existing
+layer-coercion warnings can also come from valid whole-image expansion;
+they DO NOT prove these malformed regions occurred in this Xbox run.
+
+The targeted Linux metadata contract passed 46656 tagged-slice cases,
+including last-layer copies, unequal array sizes, selected nonzero mips,
+untouched neighbours, zero/invalid ranges and uint32 overflow boundaries.
+It executes the exact helpers used by Runtime, not Vulkan GPU commands.
+Full portable suite passed (44 Python tests and native contracts). Windows
+build/contracts pending. No claim of actual Xbox
+DEVICE_HUNG resolution, menu or gameplay is made.
+
+Reference for array-layer bounds and mip extents:
+https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdCopyImage.html
+https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdResolveImage.html

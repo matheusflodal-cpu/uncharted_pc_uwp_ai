@@ -55,6 +55,9 @@ def main():
     cxx = os.environ.get("CXX") or shutil.which("c++")
     if not cxx:
         raise SystemExit("C++20 compiler not found")
+    run(cxx,"-std=c++20","-O2","-Wall","-Wextra","-Werror",
+        "tests/test_uwp_copy_ranges.cpp","-o",OUT/"copy-ranges-contract")
+    run(OUT/"copy-ranges-contract")
     sirit=ROOT / "gpu/third_party/sirit"
     sirit_sources=[sirit/"src/sirit.cpp",sirit/"src/stream.cpp",*sorted((sirit/"src/instructions").glob("*.cpp"))]
     run(cxx,"-std=c++20","-O1","-Igpu/shadps4",f"-I{sirit}/include",f"-I{sirit}/src",

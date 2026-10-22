@@ -1,0 +1,18 @@
+UNCHARTED UWP 0.6.14 — CORRECAO DE LIMITES NAS COPIAS DE IMAGENS
+
+Esta versao corrige construcao de copias com camadas e mips selecionados.
+A falha foi reproduzida em testes de metadados; ainda nao esta provado que
+era a causa do DEVICE_HUNG no Xbox. Menu e gameplay nao confirmados.
+
+1. Atualize o APPX e selecione o mesmo Uncharted 3.
+2. Mantenha gpu-sync.txt normal, gpu-execution.txt serial e task-trace.txt on.
+   Os modelos da pasta Opcoes nao sao instalados automaticamente pelo APPX.
+3. Se continuar carregando por dois minutos, feche e guarde loader.log e
+   errors.log antes de abrir de novo. Se sair antes, guarde os dois tambem.
+
+Nao precisa copiar o dump novamente ou apagar caches. O diagnostico de
+workers da 0.6.13 permanece. Bounding CopyMip array range indica que uma
+copia precisou ser limitada a partir da camada de destino. Um range invalido
+para explicitamente antes de enviar o comando; ele nao e ignorado.
+
+Limite automatico continua 15 minutos. Nenhum arquivo do jogo incluido.

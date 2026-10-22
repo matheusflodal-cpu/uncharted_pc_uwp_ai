@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.13)
+## Teste atual (0.6.14)
 
-Veja [LEIA-ME-0.6.13.txt](LEIA-ME-0.6.13.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.14.txt](LEIA-ME-0.6.14.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -382,3 +382,22 @@ de objeto e desreferenciado pelo callback, nem contador zerado artificialmente.
 Ambos os thunks sao preparados e selados antes de publicar qualquer desvio.
 Os contratos exercitam ambos e rejeitam falha no segundo selo sem alterar os
 sites. Ainda e investigacao: nao ha correcao confirmada para o menu/GPU.
+
+
+## v0.6.14: limites de copias de imagens
+
+O teste 0.6.13 confirmou a captura cooperativa. As ultimas amostras dos
+workers tinham a condicao satisfeita e envelheceram cerca de 4,6 segundos
+quando a GPU parou. A thread principal manteve um contador em 1 enquanto os
+graficos ainda avancavam: isso nao prova que tal contador cause o bloqueio.
+DEVICE_HUNG voltou a ocorrer. Nao foi identificado o job pendente.
+
+A revisao grafica encontrou duas falhas de limites: CopyMip usava a quantidade
+total de camadas sem descontar a camada de destino; ResolveImage usava todas
+as camadas e mip zero, ignorando parte dos ranges das views. A 0.6.14 limita
+CopyMip ao espaco restante e usa mip, camada e quantidade selecionados nas
+copias/resolves 2D, com dimensoes limitadas aos dois mips. Ranges invalidos
+param explicitamente antes de enviar o comando. O caminho 3D de CopyMip fica
+inalterado. O contrato sintetico verifica os limites, mips e preservacao das
+camadas vizinhas. Estas falhas foram reproduzidas com metadados artificiais;
+os logs atuais nao provam que sejam a causa do DEVICE_HUNG no Xbox.
