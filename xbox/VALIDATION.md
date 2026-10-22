@@ -755,3 +755,23 @@ errno/results. No monitor registry lock, guest-memory dereference, forced
 thread suspension or wait bypass. No changes to scheduling or timeouts.
 Guest fibers are not individually tracked; untraced work is not progress
 evidence. Windows validation and Xbox results pending.
+
+### v0.6.8 Windows validation completed
+
+Tested source 9ed16df6b2c1db7e35f88ee6610f393a690a56f3 passed renderer
+run 39717357296, job 119622666687. CPU run 39717357305 and graphics
+run 39717357308 passed. The earlier source 0798004 failed to find the
+new header in the actual UWP renderer CMake module; it was corrected
+before a package was delivered.
+
+The Windows guest wait trace contract passed real mutex and condition
+blocking, wakeup, result/errno preservation, snapshots, thread exit and
+capacity exhaustion. Existing driver map-recording, integer graphics
+pipelines (80 variants), 6705 integer emitter checks, preparation parity,
+pad, overlay, boot/dialog trace, AudioOut, AJM, paging (8242 checks, zero
+corruption), POSIX memory and UWP import contracts passed. APPX 0.6.8.0
+was signed. The final Linux trace contract also passed, alongside the
+portable suite (44 Python tests plus native checks).
+
+Xbox 0.6.8 remains untested. This is loading diagnosis, not a confirmed
+fix for reaching the menu or gameplay.
