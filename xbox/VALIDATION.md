@@ -932,3 +932,41 @@ eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
 The contract uses an artificial guest frame and values; the real Xbox wait
 object, target and caller remain unknown until the user test. No full game
 boot, menu or gameplay test was performed here.
+
+## v0.6.11 Xbox result and v0.6.12 UWP code-memory fix
+
+loader.log (10).txt / errors.log (8).txt: normal, serial, task tracing on.
+The profile matched the code but was NOT installed: no near executable memory.
+No poll_last samples were produced. At 30224 ms, 7994 draws, 4635 dispatches,
+756 flip requests and 4137/5120 MiB were recorded. Presentation acquire and
+scheduler submit were pending about 4.6/4.5 seconds. Native HRESULT 0x887a0006
+confirmed DEVICE_HUNG. DRED interface query succeeded, but breadcrumb and
+page-fault queries returned 0x887a0004 (unsupported). No GPU-fault instruction
+or cause can be inferred. The inactive poll callback cannot explain this run
+as a callback execution failure; timing/other GPU causes remain unresolved.
+
+Root of the diagnostic installation failure: VirtualAlloc is mapped to
+VirtualAllocFromApp in the UWP adapter; near_image_memory requested RWX.
+Microsoft documents executable allocations as invalid for FromApp. The
+existing packaged native smoke instead allocates RW, then changes to RX.
+The old contract tested desktop VirtualAlloc(RWX), so it missed this defect.
+The manifest already declares codeGeneration. Version 0.6.12 uses a shared
+RW allocator / RX sealer for this profile, flushes the generated code before
+publishing the original-site branch, and frees allocation on prepare/seal
+failure. Error output now identifies allocation versus emit/RX-seal failure
+and includes the Win32 error. Legacy optional generic hooks are unchanged.
+
+Updated native contract: exact same allocation/sealing helpers as the host;
+Windows calls actual FromApp APIs, checks old RWX allocation is rejected,
+queries separate thunk/site protections, then executes production emitted
+code after RW->RX. Linux exercises mmap/mprotect RW->RX. An injected seal
+failure returns failure before any original-site publication. Existing MS ABI,
+register/flag/YMM, signature, sample and invalid-object contracts remain.
+Targeted Linux contract and the full portable suite passed (44 Python tests
+and native contracts). Windows FromApp API contract and build pending.
+Xbox profile installation and menu/gameplay remain untested for 0.6.12.
+
+References:
+https://learn.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualallocfromapp
+https://learn.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualprotectfromapp
+https://learn.microsoft.com/windows/apps/package-and-deploy/app-capability-declarations

@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.11)
+## Teste atual (0.6.12)
 
-Veja [LEIA-ME-0.6.11.txt](LEIA-ME-0.6.11.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.12.txt](LEIA-ME-0.6.12.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -349,3 +349,19 @@ O perfil preserva GPRs, flags e os 16 YMM completos. Os dois movimentos de regis
 continuam executando antes do comparador original. Nao ha escrita no objeto,
 liberacao artificial de espera ou mudanca de duracao. A finalidade continua
 ser descobrir qual condicao impede o menu. Consulte LOADING-ANALYSIS-0.6.10.md.
+
+## v0.6.12: alocacao UWP do diagnostico
+
+A 0.6.11 no Xbox nao instalou o perfil: seu alocador usava diretamente RWX,
+rejeitado por VirtualAllocFromApp. O contrato anterior usava VirtualAlloc de
+desktop e nao exercitava essa restricao. O caminho do perfil agora reserva RW,
+gera o codigo e sela RX com VirtualProtectFromApp, antes de publicar o desvio.
+O helper e compartilhado entre o loader e o contrato. Falhas registram a etapa
+e o erro Win32, liberam a alocacao e nao publicam o desvio. As assinaturas e
+os dados poll_last continuam iguais. Os caminhos opcionais legados de hooks
+e callbacks genericos mantem o comportamento anterior.
+
+O teste Windows chama as APIs FromApp, verifica a rejeicao do antigo pedido
+RWX, consulta as protecoes e executa o thunk depois de RW->RX. No Linux, usa
+RW->RX via mmap/mprotect. A 0.6.11 tambem teve DEVICE_HUNG perto de 30 segundos,
+com o perfil desativado; essa falha grafica nao e corrigida por esta mudanca.

@@ -85,4 +85,12 @@ static size_t uw_poll_emit(unsigned char *out,size_t capacity,uintptr_t address,
     if(k>sizeof(bytes)) return 0;
     memcpy(out,bytes,k);return k;
 }
+/* Site publication must happen only after this succeeds. Tests inject a seal
+ * failure; the original guest instructions are never patched on that path. */
+static size_t uw_poll_prepare(unsigned char *out,size_t capacity,uintptr_t address,
+        uintptr_t site,uintptr_t callback,int (*seal)(void *,size_t)) {
+    if(!seal) return 0;
+    size_t bytes=uw_poll_emit(out,capacity,address,site,callback);
+    return bytes && seal(out,capacity) ? bytes : 0;
+}
 #endif

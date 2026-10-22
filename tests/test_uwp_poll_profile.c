@@ -5,6 +5,7 @@
 #define _GNU_SOURCE
 #include "../src/runtime_poll_profile.h"
 #include "../src/runtime_wait_trace.c"
+#include "../src/runtime_code_memory.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -50,6 +51,10 @@ static void *worker(void *arg) {
     for(unsigned i=0;i<10000;++i) uncharted_wait_poll(id,id+1,id+2,id+3,id+4);
     return NULL;
 }
+static unsigned seal_failures;
+static int reject_seal(void *address,size_t size) {
+    (void)address;(void)size;++seal_failures;return 0;
+}
 int main(void) {
     assert(uw_poll_avx());
     const size_t size=UW_POLL_COMPARE+sizeof(uw_poll_compare);
@@ -65,24 +70,32 @@ int main(void) {
     }
     free(fixture);
 #ifdef _WIN32
-    unsigned char *memory=VirtualAlloc(NULL,4096,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
-#else
-    unsigned char *memory=mmap(NULL,4096,PROT_READ|PROT_WRITE|PROT_EXEC,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
-    assert(memory!=MAP_FAILED);
+    /* This rejected UWP allocation is precisely what the old desktop-only
+     * VirtualAlloc contract failed to exercise in 0.6.11. */
+    void *forbidden=VirtualAllocFromApp(NULL,4096,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+    if(forbidden) { VirtualFree(forbidden,0,MEM_RELEASE);assert(!"FromApp unexpectedly accepted RWX"); }
 #endif
-    assert(memory);unsigned char *site=memory+1024;
+    /* Separate pages: sealing the thunk must not seal the still-writable
+     * synthetic guest site before its branch is published. */
+    unsigned char *memory=uw_code_allocate_at(NULL,8192);
+    assert(memory);unsigned char *site=memory+4096;
     memcpy(site,uw_poll_loop+14,6);site[6]=0xc3;
     memset(memory,0x5a,UW_POLL_THUNK);
     assert(!uw_poll_emit(memory,511,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture));
     assert(!uw_poll_emit(memory,512,UINTPTR_MAX-1,(uintptr_t)site,(uintptr_t)capture));
     assert(!uw_poll_emit(memory,512,(uintptr_t)memory,1,(uintptr_t)capture));
     assert(memory[0]==0x5a);
-    size_t written=uw_poll_emit(memory,512,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture);
+    assert(!uw_poll_prepare(memory,4096,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture,reject_seal));
+    assert(seal_failures==1&&!memcmp(site,uw_poll_loop+14,6));
+    size_t written=uw_poll_prepare(memory,4096,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture,uw_code_seal);
     assert(written&&written<=512);int32_t jump;assert(uw_poll_rel32((uintptr_t)site+5,(uintptr_t)memory,&jump));
-    site[0]=0xe9;memcpy(site+1,&jump,4);site[5]=0x90;
 #ifdef _WIN32
-    FlushInstructionCache(GetCurrentProcess(),memory,4096);
+    MEMORY_BASIC_INFORMATION info;assert(VirtualQuery(memory,&info,sizeof(info)));
+    assert(info.Protect==PAGE_EXECUTE_READ);
+    assert(VirtualQuery(site,&info,sizeof(info)));assert(info.Protect==PAGE_READWRITE);
 #endif
+    site[0]=0xe9;memcpy(site+1,&jump,4);site[5]=0x90;
+    assert(uw_code_seal(site,4096));
     PollOutput out={0};
     /* Deliberately invalid object address: observing register values must never
      * dereference it. The harness supplies the already-read current value. */
@@ -110,11 +123,7 @@ int main(void) {
     char text[4096];size_t n=fread(text,1,sizeof(text)-1,f);text[n]=0;fclose(f);
     assert(strstr(text,"poll_last: object=0x1 current=0x11 target=0x9 mode=1"));
     assert(strstr(text,"sample_age_ms="));
-#ifdef _WIN32
-    assert(VirtualFree(memory,0,MEM_RELEASE));
-#else
-    assert(!munmap(memory,4096));
-#endif
-    puts("Loading poll profile contract: PASS; signature rejection, real emitted thunk, MS ABI five args, guest return, GPR/flags/all YMM preservation, no object reads, per-thread samples and disabled path");
+    assert(uw_code_release(memory,8192));
+    puts("Loading poll profile contract: PASS; RW-to-RX shared allocator/sealer, failed seal before publication, signature rejection, real emitted thunk, MS ABI, GPR/flags/all YMM preservation, no object reads and per-thread samples");
     return 0;
 }

@@ -8,6 +8,7 @@
 #include <time.h>
 #include <cpuid.h>
 #include "runtime.h"
+#include "runtime_code_memory.h"
 #ifdef UNCHARTED_WAIT_TRACE
 #include "runtime_wait_trace.h"
 #include "runtime_poll_profile.h"
@@ -693,20 +694,24 @@ static void install_guest_hooks(Segment *segments, uint64_t ns) {
  * the expected bytes calls a host function first, with rdi, rsi, the image base and r14 (Microsoft
  * x64 convention on every host). The thunk keeps the guest's registers and flags, so it also
  * works inside a function. */
-static unsigned char *near_image_memory(size_t size) {
+static unsigned char *near_image_memory(size_t size,int writable_only) {
     unsigned char *memory=NULL;
 #ifdef _WIN32
     /* rel32 jumps: within 2 GiB of the image. */
     uint64_t end_of_image=round_page(guest_image_size ? guest_image_size : 1);
     uint64_t base=((uint64_t)(uintptr_t)image+end_of_image+(32u<<20)+0xffff)&~(uint64_t)0xffff;
     for (uint64_t step=0;!memory && step<(1900ull<<20);step+=1u<<16) {
-        memory=VirtualAlloc((void *)(uintptr_t)(base+step),size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
-        if (!memory && (uint64_t)(uintptr_t)image>step+(2u<<20))
-            memory=VirtualAlloc((void *)(uintptr_t)(((uint64_t)(uintptr_t)image-step-(2u<<20))&~(uint64_t)0xffff),
-                                size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+        void *at=(void *)(uintptr_t)(base+step);
+        memory=writable_only ? uw_code_allocate_at(at,size) :
+            VirtualAlloc(at,size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+        if (!memory && (uint64_t)(uintptr_t)image>step+(2u<<20)) {
+            at=(void *)(uintptr_t)(((uint64_t)(uintptr_t)image-step-(2u<<20))&~(uint64_t)0xffff);
+            memory=writable_only ? uw_code_allocate_at(at,size) :
+                VirtualAlloc(at,size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+        }
     }
 #else
-    (void)size;
+    (void)size;(void)writable_only;
 #endif
     return memory;
 }
@@ -727,21 +732,36 @@ static void install_loading_poll_trace(Segment *segments,uint64_t ns,uint64_t im
         puts("Loading poll profile: not installed (executable signature differs)");return;
     }
     if(!uw_poll_avx()) { puts("Loading poll profile: not installed (AVX state unavailable)");return; }
-    unsigned char *thunk=near_image_memory(4096);
-    if(!thunk) { puts("Loading poll profile: not installed (no near executable memory)");return; }
+    unsigned char *thunk=near_image_memory(4096,1);
+    if(!thunk) {
+#ifdef _WIN32
+        printf("Loading poll profile: not installed (RW allocation failed; win32=%lu)\n",(unsigned long)GetLastError());
+#else
+        puts("Loading poll profile: not installed (RW allocation unavailable)");
+#endif
+        return;
+    }
     const uintptr_t site=(uintptr_t)image+UW_POLL_SITE;
-    size_t bytes=uw_poll_emit(thunk,4096,(uintptr_t)thunk,site,(uintptr_t)uncharted_wait_poll);
     int32_t jump;
-    if(!bytes || !uw_poll_rel32(site+5,(uintptr_t)thunk,&jump)) {
-        puts("Loading poll profile: not installed (thunk range)");return;
+    if(!uw_poll_rel32(site+5,(uintptr_t)thunk,&jump)) {
+        uw_code_release(thunk,4096);puts("Loading poll profile: not installed (thunk range)");return;
+    }
+    size_t bytes=uw_poll_prepare(thunk,4096,(uintptr_t)thunk,site,
+                                (uintptr_t)uncharted_wait_poll,uw_code_seal);
+    if(!bytes) {
+#ifdef _WIN32
+        printf("Loading poll profile: not installed (emit/RX seal failed; win32=%lu)\n",(unsigned long)GetLastError());
+#else
+        puts("Loading poll profile: not installed (emit/RX seal failed)");
+#endif
+        uw_code_release(thunk,4096);return;
     }
     unsigned char *at=image+UW_POLL_SITE;
     at[0]=0xe9;memcpy(at+1,&jump,4);at[5]=0x90;
 #ifdef _WIN32
-    FlushInstructionCache(GetCurrentProcess(),thunk,bytes);
     FlushInstructionCache(GetCurrentProcess(),at,6);
 #endif
-    printf("Loading poll profile: installed big3-v1 site=0x%" PRIxPTR " image_offset=0x%" PRIx64 "; per-thread observed values\n",site,UW_POLL_SITE);
+    printf("Loading poll profile: installed big3-v1 site=0x%" PRIxPTR " image_offset=0x%" PRIx64 "; RW-to-RX sealed; per-thread observed values\n",site,UW_POLL_SITE);
 #else
     (void)segments;(void)ns;(void)image_size;
 #endif
@@ -761,7 +781,7 @@ static void install_game_callbacks(Segment *segments, uint64_t ns, uint64_t imag
             printf("Callbacks: %s at %#" PRIx64 " (patch)\n",c->name,c->offset);
             continue;
         }
-        if (!thunks && !(thunks=near_image_memory(4096))) { printf("Callbacks: no thunk memory\n"); return; }
+        if (!thunks && !(thunks=near_image_memory(4096,0))) { printf("Callbacks: no thunk memory\n"); return; }
         if (used+256>4096) break;
         unsigned char *t=thunks+used, *f=image+c->offset;
         size_t k=0;
