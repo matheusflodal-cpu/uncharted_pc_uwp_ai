@@ -12,7 +12,7 @@ void uncharted_wait_name(const char *name);
 void uncharted_wait_begin(unsigned kind,uintptr_t target,uintptr_t caller);
 void uncharted_wait_end(int64_t result);
 void __attribute__((ms_abi)) uncharted_wait_poll(uint64_t object,uint64_t current,
-    uint64_t target,uint64_t mode,uint64_t caller);
+    uint64_t target,uint64_t mode,uint64_t caller,uint64_t site);
 void uncharted_wait_snapshot(FILE *out);
 #ifdef __cplusplus
 }

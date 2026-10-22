@@ -996,3 +996,43 @@ These contracts run with synthetic guest data on Windows, not the full game
 in an Xbox AppContainer. Xbox installation of the diagnostic remains to be
 verified by an installed/RW-to-RX sealed line and poll_last samples. The
 DEVICE_HUNG cause, menu and gameplay remain unresolved.
+
+
+## v0.6.12 Xbox result and v0.6.13 cooperative wait coverage
+
+Inputs read-only: loader.log (11).txt and errors.log (9).txt. Source package
+0.6.12, game 3, normal synchronization, serial execution, task tracing on.
+The loading profile installed and reported RW-to-RX sealed. Main's samples
+at 10143/15235/20327/25341/30438 ms observed object 0x1200105680, current 1,
+target 0, equality mode and absolute return 0x88c5d7. Final sample count 12245,
+age 0 ms. This is the return of a generic counter wait inside wrapper at
+image offset 0x48c5b0, not an identified direct loading-state wait.
+
+Static evidence: wrapper 0x48c5b0 calls wait at 0x48c5d2, then recycles a
+128-byte entry through a pool under the job-manager global at 0x14f8700.
+Creation code at 0x48c1b0 obtains an entry, initializes metadata and sets
+object+0x20 to the number of jobs at 0x48c2c2. Job completion paths (including
+0x49eefe) atomically subtract one and notify at 0x49e1e0. This identifies the
+counter mechanism, not the exact unfinished job or a missing callback.
+
+Final graphics counters: 7864 draws, 4561 dispatches, 755 flip requests,
+unchanged since 25341 ms. At 30438 ms bridge acquire pending 6158 ms and
+scheduler submit pending 6002 ms. Native HRESULT 0x887a0006 DEVICE_HUNG is
+recorded; DRED queries unsupported (0x887a0004). Final memory 4147/5120 MiB,
+no swap, I/O active/errors 0/0. Counts do not measure unique frames/FPS.
+The relationship between the pending task and GPU failure is unresolved.
+
+Coverage gap: workers wait cooperatively at 0x48c510, invoking 0x4a0050 and
+checking the counter through a separate path at 0x48c522. The previous profile
+only observed 0x48c54e after a sleep, missing cooperative nested waits.
+Version 0.6.13 validates the worker-loop bytes as well, then prepares and
+seals both thunks before publishing either branch. A sixth MS-ABI argument
+records the exact instrumented site. It still reads only guest registers
+and the signature-proven wait return slot; no object reads or frame walks.
+It preserves the original scheduling, predicates and completion writes.
+
+Targeted Linux contract passed: real emitted thunks at both sites, sixth
+argument, GPR/flags/all-YMM preservation, per-thread isolation, rejection of
+worker signature mutations, and injected second-seal failure before any site
+publication. The full portable suite also passed (44 Python tests and native contracts).
+Windows validation pending. No Xbox/menu or GPU-hang fix is claimed for 0.6.13.

@@ -38,8 +38,8 @@ __asm__(".text\n.globl poll_contract_call\npoll_contract_call:\n"
     SAVE_YMM(12,512) SAVE_YMM(13,544) SAVE_YMM(14,576) SAVE_YMM(15,608)
     "vzeroupper\nadd $8,%rsp\npop %r15\npop %r14\npop %r13\npop %r12\npop %rbx\npop %rbp\nret\n");
 static void __attribute__((ms_abi,noinline)) capture(uint64_t object,uint64_t current,
-        uint64_t target,uint64_t mode,uint64_t caller) {
-    uncharted_wait_poll(object,current,target,mode,caller);
+        uint64_t target,uint64_t mode,uint64_t caller,uint64_t site) {
+    uncharted_wait_poll(object,current,target,mode,caller,site);
     /* Simulate a host function that destroys volatile registers and YMM upper
      * halves. The compiler still obeys the MS ABI for XMM6..15 lower halves. */
     __asm__ volatile("vzeroall" ::: "xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7",
@@ -48,12 +48,16 @@ static void __attribute__((ms_abi,noinline)) capture(uint64_t object,uint64_t cu
 static void *worker(void *arg) {
     uintptr_t id=(uintptr_t)arg;
     uncharted_wait_name(id==1?"poll-worker-1":"poll-worker-2");
-    for(unsigned i=0;i<10000;++i) uncharted_wait_poll(id,id+1,id+2,id+3,id+4);
+    for(unsigned i=0;i<10000;++i) uncharted_wait_poll(id,id+1,id+2,id+3,id+4,id+5);
     return NULL;
 }
 static unsigned seal_failures;
 static int reject_seal(void *address,size_t size) {
     (void)address;(void)size;++seal_failures;return 0;
+}
+static int reject_second_seal(void *address,size_t size) {
+    if(++seal_failures==2) return 0;
+    return uw_code_seal(address,size);
 }
 int main(void) {
     assert(uw_poll_avx());
@@ -61,11 +65,12 @@ int main(void) {
     unsigned char *fixture=calloc(1,size);assert(fixture);
     memcpy(fixture+UW_POLL_ENTRY,uw_poll_entry,sizeof(uw_poll_entry));
     memcpy(fixture+UW_POLL_SITE-14,uw_poll_loop,sizeof(uw_poll_loop));
+    memcpy(fixture+UW_POLL_WORKER_SITE-18,uw_poll_worker,sizeof(uw_poll_worker));
     memcpy(fixture+UW_POLL_COMPARE,uw_poll_compare,sizeof(uw_poll_compare));
     assert(uw_poll_match(fixture,size));assert(!uw_poll_match(fixture,size-1));assert(!uw_poll_match(NULL,size));
-    const size_t offsets[]={UW_POLL_ENTRY,UW_POLL_SITE-14,UW_POLL_COMPARE};
-    const size_t lengths[]={sizeof(uw_poll_entry),sizeof(uw_poll_loop),sizeof(uw_poll_compare)};
-    for(unsigned i=0;i<3;++i) for(size_t j=0;j<lengths[i];++j) {
+    const size_t offsets[]={UW_POLL_ENTRY,UW_POLL_SITE-14,UW_POLL_WORKER_SITE-18,UW_POLL_COMPARE};
+    const size_t lengths[]={sizeof(uw_poll_entry),sizeof(uw_poll_loop),sizeof(uw_poll_worker),sizeof(uw_poll_compare)};
+    for(unsigned i=0;i<4;++i) for(size_t j=0;j<lengths[i];++j) {
         fixture[offsets[i]+j]^=1;assert(!uw_poll_match(fixture,size));fixture[offsets[i]+j]^=1;
     }
     free(fixture);
@@ -77,39 +82,56 @@ int main(void) {
 #endif
     /* Separate pages: sealing the thunk must not seal the still-writable
      * synthetic guest site before its branch is published. */
-    unsigned char *memory=uw_code_allocate_at(NULL,8192);
-    assert(memory);unsigned char *site=memory+4096;
-    memcpy(site,uw_poll_loop+14,6);site[6]=0xc3;
+    unsigned char *failure=uw_code_allocate_at(NULL,12288);assert(failure);
+    uintptr_t failure_image=(uintptr_t)(failure+8192)-UW_POLL_WORKER_SITE;
+    for(unsigned i=0;i<2;++i) memcpy((void *)(failure_image+uw_poll_sites[i]),uw_poll_loop+14,6);
+    int32_t jumps[2];seal_failures=0;
+    assert(!uw_poll_prepare_all(failure,4096,failure_image,(uintptr_t)capture,jumps,reject_second_seal));
+    assert(seal_failures==2);
+    for(unsigned i=0;i<2;++i) assert(!memcmp((void *)(failure_image+uw_poll_sites[i]),uw_poll_loop+14,6));
+    assert(uw_code_release(failure,12288));
+    unsigned char *memory=uw_code_allocate_at(NULL,12288);assert(memory);
+    uintptr_t image=(uintptr_t)(memory+8192)-UW_POLL_WORKER_SITE;
+    for(unsigned i=0;i<2;++i) {
+        unsigned char *site=(void *)(image+uw_poll_sites[i]);
+        memcpy(site,uw_poll_loop+14,6);site[6]=0xc3;
+    }
     memset(memory,0x5a,UW_POLL_THUNK);
-    assert(!uw_poll_emit(memory,511,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture));
-    assert(!uw_poll_emit(memory,512,UINTPTR_MAX-1,(uintptr_t)site,(uintptr_t)capture));
+    assert(!uw_poll_emit(memory,511,(uintptr_t)memory,image+UW_POLL_SITE,(uintptr_t)capture));
+    assert(!uw_poll_emit(memory,512,UINTPTR_MAX-1,image+UW_POLL_SITE,(uintptr_t)capture));
     assert(!uw_poll_emit(memory,512,(uintptr_t)memory,1,(uintptr_t)capture));
     assert(memory[0]==0x5a);
-    assert(!uw_poll_prepare(memory,4096,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture,reject_seal));
-    assert(seal_failures==1&&!memcmp(site,uw_poll_loop+14,6));
-    size_t written=uw_poll_prepare(memory,4096,(uintptr_t)memory,(uintptr_t)site,(uintptr_t)capture,uw_code_seal);
-    assert(written&&written<=512);int32_t jump;assert(uw_poll_rel32((uintptr_t)site+5,(uintptr_t)memory,&jump));
+    assert(!uw_poll_prepare(memory,4096,(uintptr_t)memory,image+UW_POLL_SITE,(uintptr_t)capture,reject_seal));
+    assert(uw_poll_prepare_all(memory,4096,image,(uintptr_t)capture,jumps,uw_code_seal));
 #ifdef _WIN32
-    MEMORY_BASIC_INFORMATION info;assert(VirtualQuery(memory,&info,sizeof(info)));
-    assert(info.Protect==PAGE_EXECUTE_READ);
-    assert(VirtualQuery(site,&info,sizeof(info)));assert(info.Protect==PAGE_READWRITE);
+    MEMORY_BASIC_INFORMATION info;
+    for(unsigned i=0;i<2;++i) {
+        assert(VirtualQuery(memory+i*4096,&info,sizeof(info)));assert(info.Protect==PAGE_EXECUTE_READ);
+    }
+    assert(VirtualQuery(memory+8192,&info,sizeof(info)));assert(info.Protect==PAGE_READWRITE);
 #endif
-    site[0]=0xe9;memcpy(site+1,&jump,4);site[5]=0x90;
-    assert(uw_code_seal(site,4096));
+    for(unsigned i=0;i<2;++i) {
+        unsigned char *site=(void *)(image+uw_poll_sites[i]);
+        site[0]=0xe9;memcpy(site+1,&jumps[i],4);site[5]=0x90;
+    }
+    assert(uw_code_seal(memory+8192,4096));
     PollOutput out={0};
-    /* Deliberately invalid object address: observing register values must never
-     * dereference it. The harness supplies the already-read current value. */
-    poll_contract_call(site,&out,1,17,9,1);assert(LOAD(uw_claimed)==0);
+    for(unsigned i=0;i<2;++i) poll_contract_call((void *)(image+uw_poll_sites[i]),&out,1,17,9,1);
+    assert(LOAD(uw_claimed)==0);
     uncharted_wait_enable();uncharted_wait_name("poll-contract");
-    errno=EDOM;poll_contract_call(site,&out,1,17,9,1);assert(errno==EDOM);
-    UwSlot *s=&uw_slots[0];assert(LOAD(s->poll_object)==1&&LOAD(s->poll_current)==17);
-    assert(LOAD(s->poll_target)==9&&LOAD(s->poll_mode)==1);
-    assert(LOAD(s->poll_caller)==poll_expected_caller&&LOAD(s->poll_samples)==1);
-    assert(out.regs[0]==0x1111&&out.regs[1]==0x2222&&out.regs[2]==1&&out.regs[3]==1);
-    assert(out.regs[4]==9&&out.regs[5]==17&&out.regs[6]==0x4444&&out.regs[7]==0x5555);
-    assert(out.regs[8]==0x6666&&out.regs[9]==0x7777&&out.regs[10]==(uintptr_t)site);
-    assert(out.regs[11]==(uintptr_t)&out&&out.regs[12]==1&&out.regs[13]==9&&(out.regs[15]&1));
-    for(unsigned i=0;i<16;++i) assert(!memcmp(out.ymm+32*i,poll_pattern,32));
+    for(unsigned i=0;i<2;++i) {
+        unsigned char *site=(void *)(image+uw_poll_sites[i]);
+        errno=EDOM;poll_contract_call(site,&out,1,17,9,1);assert(errno==EDOM);
+        UwSlot *s=&uw_slots[0];assert(LOAD(s->poll_object)==1&&LOAD(s->poll_current)==17);
+        assert(LOAD(s->poll_target)==9&&LOAD(s->poll_mode)==1);
+        assert(LOAD(s->poll_caller)==poll_expected_caller&&LOAD(s->poll_samples)==i+1);
+        assert(LOAD(s->poll_site)==(uintptr_t)site);
+        assert(out.regs[0]==0x1111&&out.regs[1]==0x2222&&out.regs[2]==1&&out.regs[3]==1);
+        assert(out.regs[4]==9&&out.regs[5]==17&&out.regs[6]==0x4444&&out.regs[7]==0x5555);
+        assert(out.regs[8]==0x6666&&out.regs[9]==0x7777&&out.regs[10]==(uintptr_t)site);
+        assert(out.regs[11]==(uintptr_t)&out&&out.regs[12]==1&&out.regs[13]==9&&(out.regs[15]&1));
+        for(unsigned i=0;i<16;++i) assert(!memcmp(out.ymm+32*i,poll_pattern,32));
+    }
     pthread_t a,b;assert(!pthread_create(&a,NULL,worker,(void*)1));assert(!pthread_create(&b,NULL,worker,(void*)2));
     assert(!pthread_join(a,NULL));assert(!pthread_join(b,NULL));
     assert(LOAD(uw_claimed)==3);
@@ -117,13 +139,14 @@ int main(void) {
         UwSlot *w=&uw_slots[i];uint64_t id=LOAD(w->poll_object);
         assert(id==1||id==2);assert(LOAD(w->poll_current)==id+1&&LOAD(w->poll_target)==id+2);
         assert(LOAD(w->poll_mode)==id+3&&LOAD(w->poll_caller)==id+4&&LOAD(w->poll_samples)==10000);
+        assert(LOAD(w->poll_site)==id+5);
     }
     assert(LOAD(uw_slots[1].poll_object)!=LOAD(uw_slots[2].poll_object));
     FILE *f=tmpfile();assert(f);uncharted_wait_snapshot(f);rewind(f);
     char text[4096];size_t n=fread(text,1,sizeof(text)-1,f);text[n]=0;fclose(f);
     assert(strstr(text,"poll_last: object=0x1 current=0x11 target=0x9 mode=1"));
     assert(strstr(text,"sample_age_ms="));
-    assert(uw_code_release(memory,8192));
-    puts("Loading poll profile contract: PASS; RW-to-RX shared allocator/sealer, failed seal before publication, signature rejection, real emitted thunk, MS ABI, GPR/flags/all YMM preservation, no object reads and per-thread samples");
+    assert(uw_code_release(memory,12288));
+    puts("Loading poll profile contract: PASS; pause and cooperative sites, six MS-ABI arguments, RW-to-RX shared allocator/sealer, failed second seal before any publication, signature rejection, real emitted thunk, MS ABI, GPR/flags/all YMM preservation, no object reads and per-thread samples");
     return 0;
 }

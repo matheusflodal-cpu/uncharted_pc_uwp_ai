@@ -11,8 +11,16 @@
 #include <cpuid.h>
 #define UW_POLL_ENTRY UINT64_C(0x48c4c0)
 #define UW_POLL_SITE UINT64_C(0x48c54e)
+#define UW_POLL_WORKER_SITE UINT64_C(0x48c522)
 #define UW_POLL_COMPARE UINT64_C(0x49e1c0)
 #define UW_POLL_THUNK 512
+static const uint64_t uw_poll_sites[]={UW_POLL_SITE,UW_POLL_WORKER_SITE};
+/* Both branches have already read object+0x20 into RDI. The worker branch
+ * executes other jobs while waiting; tracing only the sleep branch misses it. */
+static const unsigned char uw_poll_worker[]={
+    0x48,0x89,0xdf,0x4c,0x89,0xfe,0x44,0x89,0xf2,0xe8,0x32,0x3b,1,0,
+    0x48,0x8b,0x7b,0x20,0x4c,0x89,0xfe,0x44,0x89,0xf2,
+    0xe8,0x93,0x1c,1,0,0x84,0xc0,0x74,0xdf};
 static const unsigned char uw_poll_entry[]={
     0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x41,0x54,0x53,
     0x41,0x89,0xd6,0x49,0x89,0xf7,0x48,0x89,0xfb};
@@ -26,6 +34,7 @@ static const unsigned char uw_poll_compare[]={
 static int uw_poll_match(const unsigned char *image,uint64_t size) {
     return image && size>=UW_POLL_COMPARE+sizeof(uw_poll_compare) &&
         !memcmp(image+UW_POLL_ENTRY,uw_poll_entry,sizeof(uw_poll_entry)) &&
+        !memcmp(image+UW_POLL_WORKER_SITE-18,uw_poll_worker,sizeof(uw_poll_worker)) &&
         !memcmp(image+UW_POLL_SITE-14,uw_poll_loop,sizeof(uw_poll_loop)) &&
         !memcmp(image+UW_POLL_COMPARE,uw_poll_compare,sizeof(uw_poll_compare));
 }
@@ -40,7 +49,7 @@ static int uw_poll_rel32(uintptr_t from,uintptr_t to,int32_t *out) {
     else { if(from-to>UINT64_C(2147483648)) return 0; *out=(int32_t)(-(int64_t)(from-to)); }
     return 1;
 }
-/* MS ABI callback(object, current, target, mode, original_wait_return).
+/* MS ABI callback(object, current, target, mode, original_wait_return, site).
  * Entry signature proves RBP is this routine's frame; [RBP+8] is its own
  * return slot. No frame walk or arbitrary object/data dereference is made.
  * Preserve all GPRs/flags and all 16 full YMM registers across the host call.
@@ -69,6 +78,9 @@ static size_t uw_poll_emit(unsigned char *out,size_t capacity,uintptr_t address,
         0x48,0x8b,0x45,0x08, /* rax = [rbp+8] (wait routine return slot) */
         0x48,0x89,0x44,0x24,0x20}; /* fifth argument beyond shadow space */
     memcpy(bytes+k,args,sizeof(args));k+=sizeof(args);
+    bytes[k++]=0x48;bytes[k++]=0xb8;memcpy(bytes+k,&site,8);k+=8;
+    static const unsigned char site_arg[]={0x48,0x89,0x44,0x24,0x28};
+    memcpy(bytes+k,site_arg,sizeof(site_arg));k+=sizeof(site_arg);
     bytes[k++]=0x48;bytes[k++]=0xb8;memcpy(bytes+k,&callback,8);k+=8;
     bytes[k++]=0xff;bytes[k++]=0xd0;
     for(unsigned x=0;x<16;++x) {
@@ -92,5 +104,17 @@ static size_t uw_poll_prepare(unsigned char *out,size_t capacity,uintptr_t addre
     if(!seal) return 0;
     size_t bytes=uw_poll_emit(out,capacity,address,site,callback);
     return bytes && seal(out,capacity) ? bytes : 0;
+}
+/* No site writes here: the caller publishes only after all branches succeed. */
+static int uw_poll_prepare_all(unsigned char *thunks,size_t page,uintptr_t image,
+        uintptr_t callback,int32_t *jumps,int (*seal)(void *,size_t)) {
+    if(!thunks || !jumps || !seal || page<UW_POLL_THUNK || page>SIZE_MAX/2 ||
+       (uintptr_t)thunks>UINTPTR_MAX-2*page || image>UINTPTR_MAX-UW_POLL_SITE-6) return 0;
+    for(size_t i=0;i<sizeof(uw_poll_sites)/sizeof(*uw_poll_sites);++i) {
+        uintptr_t site=image+uw_poll_sites[i];unsigned char *thunk=thunks+i*page;
+        if(!uw_poll_rel32(site+5,(uintptr_t)thunk,&jumps[i]) ||
+           !uw_poll_prepare(thunk,page,(uintptr_t)thunk,site,callback,seal)) return 0;
+    }
+    return 1;
 }
 #endif

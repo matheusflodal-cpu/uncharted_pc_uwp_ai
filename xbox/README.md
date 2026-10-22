@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.12)
+## Teste atual (0.6.13)
 
-Veja [LEIA-ME-0.6.12.txt](LEIA-ME-0.6.12.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.13.txt](LEIA-ME-0.6.13.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -365,3 +365,20 @@ O teste Windows chama as APIs FromApp, verifica a rejeicao do antigo pedido
 RWX, consulta as protecoes e executa o thunk depois de RW->RX. No Linux, usa
 RW->RX via mmap/mprotect. A 0.6.11 tambem teve DEVICE_HUNG perto de 30 segundos,
 com o perfil desativado; essa falha grafica nao e corrigida por esta mudanca.
+
+
+## v0.6.13: espera cooperativa dos workers
+
+O teste 0.6.12 confirmou a instalacao RW->RX. A thread principal amostrou
+repetidamente o objeto 0x1200105680, valor 1, alvo 0, modo igualdade, com
+retorno absoluto 0x88c5d7. O contador pertence ao pool de tarefas; nao e prova
+de espera direta no estado global de loading. O mesmo teste terminou com
+DEVICE_HUNG; a causa grafica continua sem identificacao.
+
+O perfil anterior so observava o ramo com sleep. Os workers podem esperar
+no mesmo contador executando outras tarefas, por um ramo diferente. Agora os
+dois ramos sao cobertos; o log inclui site para distingui-los. Nenhum ponteiro
+de objeto e desreferenciado pelo callback, nem contador zerado artificialmente.
+Ambos os thunks sao preparados e selados antes de publicar qualquer desvio.
+Os contratos exercitam ambos e rejeitam falha no segundo selo sem alterar os
+sites. Ainda e investigacao: nao ha correcao confirmada para o menu/GPU.

@@ -727,13 +727,15 @@ static void install_loading_poll_trace(Segment *segments,uint64_t ns,uint64_t im
         executable=1;
     if(!executable || !mapped(segments,ns,UW_POLL_ENTRY,sizeof(uw_poll_entry)) ||
        !mapped(segments,ns,UW_POLL_SITE-14,sizeof(uw_poll_loop)) ||
+       !mapped(segments,ns,UW_POLL_WORKER_SITE-18,sizeof(uw_poll_worker)) ||
        !mapped(segments,ns,UW_POLL_COMPARE,sizeof(uw_poll_compare)) ||
        !uw_poll_match(image,image_size)) {
         puts("Loading poll profile: not installed (executable signature differs)");return;
     }
     if(!uw_poll_avx()) { puts("Loading poll profile: not installed (AVX state unavailable)");return; }
-    unsigned char *thunk=near_image_memory(4096,1);
-    if(!thunk) {
+    const size_t count=sizeof(uw_poll_sites)/sizeof(*uw_poll_sites),total=count*4096;
+    unsigned char *thunks=near_image_memory(total,1);
+    if(!thunks) {
 #ifdef _WIN32
         printf("Loading poll profile: not installed (RW allocation failed; win32=%lu)\n",(unsigned long)GetLastError());
 #else
@@ -741,27 +743,26 @@ static void install_loading_poll_trace(Segment *segments,uint64_t ns,uint64_t im
 #endif
         return;
     }
-    const uintptr_t site=(uintptr_t)image+UW_POLL_SITE;
-    int32_t jump;
-    if(!uw_poll_rel32(site+5,(uintptr_t)thunk,&jump)) {
-        uw_code_release(thunk,4096);puts("Loading poll profile: not installed (thunk range)");return;
-    }
-    size_t bytes=uw_poll_prepare(thunk,4096,(uintptr_t)thunk,site,
-                                (uintptr_t)uncharted_wait_poll,uw_code_seal);
-    if(!bytes) {
+    int32_t jumps[sizeof(uw_poll_sites)/sizeof(*uw_poll_sites)];
+    /* Prepare and seal BOTH thunks before publishing either guest branch. */
+    if(!uw_poll_prepare_all(thunks,4096,(uintptr_t)image,
+                            (uintptr_t)uncharted_wait_poll,jumps,uw_code_seal)) {
 #ifdef _WIN32
-        printf("Loading poll profile: not installed (emit/RX seal failed; win32=%lu)\n",(unsigned long)GetLastError());
+        printf("Loading poll profile: not installed (range/emit/RX seal failed; win32=%lu)\n",(unsigned long)GetLastError());
 #else
-        puts("Loading poll profile: not installed (emit/RX seal failed)");
+        puts("Loading poll profile: not installed (range/emit/RX seal failed)");
 #endif
-        uw_code_release(thunk,4096);return;
+        uw_code_release(thunks,total);return;
     }
-    unsigned char *at=image+UW_POLL_SITE;
-    at[0]=0xe9;memcpy(at+1,&jump,4);at[5]=0x90;
+    for(size_t i=0;i<count;++i) {
+        unsigned char *at=image+uw_poll_sites[i];
+        at[0]=0xe9;memcpy(at+1,&jumps[i],4);at[5]=0x90;
 #ifdef _WIN32
-    FlushInstructionCache(GetCurrentProcess(),at,6);
+        FlushInstructionCache(GetCurrentProcess(),at,6);
 #endif
-    printf("Loading poll profile: installed big3-v1 site=0x%" PRIxPTR " image_offset=0x%" PRIx64 "; RW-to-RX sealed; per-thread observed values\n",site,UW_POLL_SITE);
+    }
+    printf("Loading poll profile: installed big3-v2 pause=0x%" PRIxPTR " cooperative=0x%" PRIxPTR "; RW-to-RX sealed; per-thread observed values\n",
+           (uintptr_t)image+UW_POLL_SITE,(uintptr_t)image+UW_POLL_WORKER_SITE);
 #else
     (void)segments;(void)ns;(void)image_size;
 #endif
