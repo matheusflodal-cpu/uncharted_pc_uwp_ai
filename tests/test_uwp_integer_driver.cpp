@@ -12,11 +12,12 @@
 using Shader::Backend::SPIRV::IntegerSampling::Config;
 std::vector<uint32_t> GenerateFragment(Config,bool,bool);
 std::vector<uint32_t> GenerateVertex();
-static unsigned validation_failures,map_failures;
+static unsigned validation_failures,map_failures,dred_queries;
 static void Diagnostic(const char* text){
     std::fprintf(stderr,"%s\n",text);
     if(std::strstr(text,"phase=dxil_validation"))++validation_failures;
     if(std::strstr(text,"phase=command_resource_map"))++map_failures;
+    if(std::strstr(text,"phase=dred_interface"))++dred_queries;
 }
 static void Require(bool value,const char* message){if(!value){std::fprintf(stderr,"Integer driver FAIL: %s\n",message);std::exit(1);}}
 int main(int argc,char** argv){
@@ -58,6 +59,7 @@ int main(int argc,char** argv){
     auto inject=reinterpret_cast<void(*)(int32_t)>(GetProcAddress(dll,"dznSetUwpDiagnosticMapFailure"));
     auto status=reinterpret_cast<void(*)(VkDevice)>(GetProcAddress(dll,"dznReportUwpDeviceStatus"));
     Require(inject&&status,"map injection and device status exports");status(device);
+    Require(dred_queries==1,"optional DRED query on the real driver device");
     DEVICE_FN(vkCreateBuffer);DEVICE_FN(vkDestroyBuffer);DEVICE_FN(vkGetBufferMemoryRequirements);
     DEVICE_FN(vkAllocateMemory);DEVICE_FN(vkFreeMemory);DEVICE_FN(vkBindBufferMemory);
     DEVICE_FN(vkCreateCommandPool);DEVICE_FN(vkDestroyCommandPool);DEVICE_FN(vkAllocateCommandBuffers);

@@ -775,3 +775,28 @@ portable suite (44 Python tests plus native checks).
 
 Xbox 0.6.8 remains untested. This is loading diagnosis, not a confirmed
 fix for reaching the menu or gameplay.
+
+## v0.6.8 Xbox result and v0.6.9 investigation
+
+loader.log (6).txt / errors.log (4).txt: normal sync; counters stopped
+near 40 seconds and DEVICE_HUNG 0x887a0006 was captured. Last snapshot
+45663 ms: 7843 draws, 4540 dispatches, 747 flips, 4217/5120 MiB.
+138 task slots registered, none dropped. FlipHandler/GfxEop waited on
+events while bridge acquire and scheduler submit remained pending.
+Compute handler waits alone are not proof of incorrect synchronization.
+No missing-import termination was recorded.
+
+Queue audit: graphics and presentation use the same queue; caller paths
+already hold Scheduler::submit_mutex for acquire and presentation. No
+new nested locking is introduced. The serial option disables existing
+parallel draw recording, Vulkan recording and copy worker paths, without
+skipping work. Detailed task tracing defaults off. Native DRED settings
+are requested dynamically before device creation, with graceful absence.
+The actual Dozen device is queried on failure; output traversal is bounded.
+Next-operation inspection is omitted for overwritten history, unsampled
+counters and completed/out-of-range lists. No exact fault claim is made.
+
+References: Microsoft Learn use-dred and D3D12_AUTO_BREADCRUMB_NODE.
+Support in Xbox Dev Mode is unverified. The defaults combine serial work,
+less tracing and optional DRED; one successful run cannot isolate cause.
+Windows build and Xbox test pending.

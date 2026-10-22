@@ -29,6 +29,25 @@ static void Check(vk::Result result, const char* operation) {
 void InitializeDriver() {
     static HMODULE driver = LoadPackagedLibrary(L"vulkan_dzn.dll",0);
     if (!driver) throw std::runtime_error("Cannot load packaged Dozen driver");
+    // Optional process-wide DRED settings must precede every D3D12 device.
+    // Resolve dynamically: Xbox may not expose this desktop diagnostic entry.
+    static const bool dred_configured=[] {
+        const char* option=std::getenv("UNCHARTED_DRED");
+        if(option && option[0]=='0') { std::puts("GPU DRED: disabled by option");return true; }
+        HMODULE module=GetModuleHandleW(L"d3d12.dll");
+        using GetDebug=HRESULT (WINAPI *)(REFIID,void**);
+        auto get=module?reinterpret_cast<GetDebug>(GetProcAddress(module,"D3D12GetDebugInterface")):nullptr;
+        if(!get) { std::puts("GPU DRED: optional entry point unavailable");return true; }
+        ComPtr<ID3D12DeviceRemovedExtendedDataSettings> settings;
+        const HRESULT status=get(IID_PPV_ARGS(&settings));
+        if(SUCCEEDED(status) && settings) {
+            settings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+            settings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+            std::puts("GPU DRED: breadcrumb and page-fault reporting requested before device creation");
+        } else std::printf("GPU DRED: optional settings unavailable HRESULT=0x%08lx\n",static_cast<unsigned long>(status));
+        return true;
+    }();
+    (void)dred_configured;
     // Mesa has its own static CRT, so its stderr need not share our redirected
     // FILE. Register a direct sink before any Vulkan instance/worker is created.
     static const bool diagnostic_registered=[&] {

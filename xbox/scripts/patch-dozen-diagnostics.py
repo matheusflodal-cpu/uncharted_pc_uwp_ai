@@ -39,6 +39,38 @@ DEVICE_REPORT = r"""
 __declspec(dllexport) void dznReportUwpDeviceStatus(VkDevice handle) {
    VK_FROM_HANDLE(dzn_device, device, handle);
    dzn_uwp_report("device_removed_reason", (uint32_t)ID3D12Device_GetDeviceRemovedReason(device->dev), "explicit device status");
+   ID3D12DeviceRemovedExtendedData *dred = NULL;
+   HRESULT status = IUnknown_QueryInterface((IUnknown *)device->dev, &IID_ID3D12DeviceRemovedExtendedData, (void **)&dred);
+   dzn_uwp_report("dred_interface", (uint32_t)status, "optional native device diagnostics");
+   if (FAILED(status) || !dred) return;
+   D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT output = {0};
+   status = ID3D12DeviceRemovedExtendedData_GetAutoBreadcrumbsOutput(dred, &output);
+   dzn_uwp_report("dred_breadcrumbs", (uint32_t)status, "native breadcrumb query");
+   if (SUCCEEDED(status)) {
+      const D3D12_AUTO_BREADCRUMB_NODE *node = output.pHeadAutoBreadcrumbNode;
+      unsigned index = 0;
+      for (; node && index < 32; node = node->pNext, ++index) {
+         uint32_t completed = node->pLastBreadcrumbValue ? *node->pLastBreadcrumbValue : 0;
+         char detail[384];
+         snprintf(detail, sizeof(detail), "node=%u list=%p queue=%p completed=%u recorded=%u sampled=%s",
+                  index, (void *)node->pCommandList, (void *)node->pCommandQueue,
+                  completed, node->BreadcrumbCount, node->pLastBreadcrumbValue ? "yes" : "no");
+         dzn_uwp_report("dred_node", index, detail);
+         /* Avoid interpreting overwritten ring entries or unsampled counters.
+          * Small command lists have a complete, directly indexed history. */
+         if (node->pCommandHistory && node->pLastBreadcrumbValue &&
+             node->BreadcrumbCount <= 65536 && completed < node->BreadcrumbCount) {
+            dzn_uwp_report("dred_next_operation", (uint32_t)node->pCommandHistory[completed], "pending operation; not proof of the faulting instruction");
+         }
+      }
+      if (node) dzn_uwp_report("dred_truncated", index, "bounded to 32 command lists");
+   }
+   D3D12_DRED_PAGE_FAULT_OUTPUT fault = {0};
+   status = ID3D12DeviceRemovedExtendedData_GetPageFaultAllocationOutput(dred, &fault);
+   char address[80];
+   snprintf(address, sizeof(address), "page_fault_va=0x%llx", (unsigned long long)fault.PageFaultVA);
+   dzn_uwp_report("dred_page_fault", (uint32_t)status, address);
+   ID3D12DeviceRemovedExtendedData_Release(dred);
 }
 #endif
 """

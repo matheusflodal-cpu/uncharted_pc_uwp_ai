@@ -43,6 +43,7 @@ extern "C" IUnknown* uncharted_uwp_core_window() {
     return result;
 }
 #endif
+static bool trace_guest_tasks=false;
 static std::atomic<bool> finished{false};
 static std::atomic<bool> closed{false};
 static std::atomic<ULONGLONG> deadline{0};
@@ -196,7 +197,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.8 — guest task and wait diagnostics");
+    std::puts("Uncharted UWP 0.6.9 — serial graphics execution and native fault diagnostics");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -217,6 +218,27 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
         throw std::runtime_error("gpu-sync.txt must contain normal or conservative");
     _putenv_s("UNCHARTED_FULL_BARRIERS",sync_mode=="conservative"?"1":"0");
     std::printf("GPU sync mode: %s\n",sync_mode=="conservative"?"conservative":"normal");
+    auto read_option=[&](const char* name) {
+        FILE* file=uncharted_uwp_fopen((root+"\\"+name).c_str(),"rb");
+        const std::string value=line(file);if(file)std::fclose(file);return value;
+    };
+    const std::string execution=read_option("gpu-execution.txt");
+    if(!execution.empty()&&execution!="serial"&&execution!="parallel")
+        throw std::runtime_error("gpu-execution.txt must contain serial or parallel");
+    const bool serial=execution!="parallel";
+    _putenv_s("BB_DRAW_PIPE",serial?"0":"");
+    _putenv_s("BB_VK_RECORD_THREAD",serial?"0":"");
+    _putenv_s("BB_COPY_THREADS",serial?"0":"");
+    std::printf("GPU execution mode: %s\n",serial?"serial":"parallel (upstream defaults)");
+    const std::string tasks=read_option("task-trace.txt");
+    if(!tasks.empty()&&tasks!="on"&&tasks!="off")
+        throw std::runtime_error("task-trace.txt must contain on or off");
+    trace_guest_tasks=tasks=="on";
+    std::printf("Guest task tracing: %s\n",trace_guest_tasks?"on":"off");
+    const std::string dred=read_option("gpu-dred.txt");
+    if(!dred.empty()&&dred!="on"&&dred!="off")
+        throw std::runtime_error("gpu-dred.txt must contain on or off");
+    _putenv_s("UNCHARTED_DRED",dred=="off"?"0":"1");
 
 #endif
     if(!native_smoke()) { std::puts("STOP: executable-memory smoke failed"); return 1; }
@@ -227,7 +249,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6.6",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.9",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {
@@ -308,7 +330,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode=="boot") {
         UnchartedBootTrace::Enable();
-        uncharted_wait_enable();
+        if(trace_guest_tasks) uncharted_wait_enable();
         std::puts("UWP boot trace enabled: heartbeat every 5 seconds; hard boot limit 900 seconds");
         values.erase(std::find(values.begin(),values.end(),"--cpu-only"));
         std::puts("EXPERIMENTAL guest boot: renderer linked; native Xbox input and XAudio2/AJM linked; online and other system guest APIs remain unavailable");

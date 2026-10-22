@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.8)
+## Teste atual (0.6.9)
 
-Veja [LEIA-ME-0.6.8.txt](LEIA-ME-0.6.8.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.9.txt](LEIA-ME-0.6.9.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -292,3 +292,23 @@ Threads sem espera instrumentada aparecem como guest_or_untraced; isso
 nao prova progresso. Fibras que compartilham threads nao sao separadas.
 Para o mesmo carregamento persistente, dois minutos ja permitem coletar
 varios snapshots. O limite de seguranca continua em 15 minutos.
+
+## v0.6.9: caminhos diretos e diagnostico nativo
+
+O Xbox 0.6.8 voltou a falhar com DEVICE_HUNG perto de 40 segundos, sem
+confirmacao da tela de carregamento pelo testador. O ultimo snapshot de
+45663 ms mostrou 7843 draws, 4540 dispatches e 747 flip requests, com
+esperas na apresentacao. A ultima memoria foi 4217/5120 MiB.
+
+A revisao confirmou que Acquire e Present ja sao protegidos pela trava de
+submissao do scheduler. Nao se adiciona outra trava sobre a mesma regiao.
+A 0.6.9 testa os caminhos diretos existentes: BB_DRAW_PIPE=0,
+BB_VK_RECORD_THREAD=0 e BB_COPY_THREADS=0. Tarefas detalhadas ficam off.
+Esses valores sao configurados antes de instanciar o renderizador.
+
+DRED e solicitado opcionalmente antes de criar dispositivos D3D12. O driver
+consulta dados de seu proprio dispositivo apos falha: ate 32 listas,
+contadores, proxima operacao apenas com historico completo de ate 65536
+entradas, e VA de page fault. Nao e garantia de suporte no Xbox ou de
+localizacao exata da instrucao. Nao ha bypass de erros/comandos.
+Consulte LEIA-ME-0.6.9.txt para os controles de comparacao.

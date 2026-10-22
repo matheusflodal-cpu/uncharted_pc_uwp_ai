@@ -1,0 +1,29 @@
+UNCHARTED UWP 0.6.9 — EXECUCAO GRAFICA SERIAL E FALHA NATIVA
+
+Atualize o APPX. Mantenha gpu-sync.txt em normal e use o mesmo jogo.
+O primeiro teste nao exige criar novos arquivos de configuracao.
+
+Padroes desta versao:
+- gpu-execution.txt: serial. Desliga o draw pipe, a thread de gravacao
+  Vulkan e os trabalhadores de copia. Os comandos continuam executando
+  nos caminhos diretos ja presentes no runtime. Nao omite shaders/draws.
+- task-trace.txt: off. Desliga os snapshots detalhados de tarefas da 0.6.8.
+- gpu-dred.txt: on. Tenta solicitar breadcrumbs e dados de page fault
+  antes da criacao dos dispositivos D3D12. O suporte no Xbox e incerto;
+  se indisponivel, registra a falha e continua. Nao requer debug layer.
+
+Os arquivos opcionais acima ficam no LocalState. gpu-execution.txt aceita
+serial ou parallel; task-trace.txt e gpu-dred.txt aceitam on ou off.
+parallel restaura os padroes de paralelismo do upstream. Para uma futura
+comparacao proxima da 0.6.7: parallel, off, off, mantendo gpu-sync normal.
+Nao faca varios testes agora: comece com os padroes desta versao.
+
+Se chegar ao menu, teste o controle. Se fechar, guarde loader.log e errors.log
+antes de reabrir. Se permanecer no mesmo carregamento por cerca de dois
+minutos, pode fechar e guardar os logs. O limite automatico e 15 minutos.
+Nao apague caches nem transfira o jogo novamente.
+
+Esta e uma tentativa de compatibilidade e diagnostico. Serial pode ficar
+mais lento. O teste combina mudancas e, sozinho, nao identifica sua causa.
+Um breadcrumb proximo da falha nao prova qual instrucao a provocou.
+Menu e gameplay ainda nao foram confirmados. Nenhum arquivo do jogo incluido.
