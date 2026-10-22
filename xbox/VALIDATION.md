@@ -735,3 +735,23 @@ Final Linux portable checks passed (44 Python tests and native contracts).
 The updated real paged-I/O regression additionally checks active-operation
 balance, a failing positioned read, interval reset, and preservation of
 active/last-completion state when reporting. Xbox 0.6.7 is untested.
+
+## v0.6.7 Xbox loading result and v0.6.8 task tracing
+
+loader.log (5).txt / errors.log (3).txt confirm 0.6.7 normal mode.
+At 900072 ms the explicit watchdog terminated with exit code 124.
+239914 draws, 67322 dispatches, 21937 flip requests; bridge presents
+continued returning. Last memory 3348/5120 MiB. No DEVICE_HUNG recorded.
+899 instrumented reads totaled 81571887 bytes. At termination the last
+completed read was 872597 ms old (about 27.5 seconds into boot), with
+zero active reads and zero reported read errors in the final interval.
+This supports a persistent loading loop/wait, not a confirmed specific
+deadlock or proof that every possible I/O path has completed.
+
+0.6.8 adds bounded atomic host-task snapshots at existing five-second
+intervals, including API wait type, target, return call site, age and
+start/return counts. The API stores host-owned data only and preserves
+errno/results. No monitor registry lock, guest-memory dereference, forced
+thread suspension or wait bypass. No changes to scheduling or timeouts.
+Guest fibers are not individually tracked; untraced work is not progress
+evidence. Windows validation and Xbox results pending.

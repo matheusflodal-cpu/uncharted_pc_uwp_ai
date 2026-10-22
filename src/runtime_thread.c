@@ -7,6 +7,7 @@
  * the same 9-byte instruction with another displacement. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "runtime_wait_trace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,6 +106,7 @@ static void attach(GuestThread *t) {
     t->tls_block=block; t->tcb=tcb;
     set_gs(tcb);
     current=t;
+    UW_NAME(t->name);
 }
 static GuestThread *new_thread(void) {
     GuestThread *t=calloc(1,sizeof(*t));
@@ -131,10 +133,12 @@ GuestThread *runtime_thread_current(void) {
 void runtime_thread_attach_host(const char *name) {
     GuestThread *t=runtime_thread_current();
     snprintf(t->name,sizeof(t->name),"%s",name ? name : "host");
+    UW_NAME(t->name);
 }
 void runtime_thread_attach_main(void) {
     GuestThread *t=runtime_thread_current();
     snprintf(t->name,sizeof(t->name),"main");
+    UW_NAME(t->name);
 }
 static GuestThread *find_thread(void *handle) {
     GuestThread *found=NULL;
@@ -288,6 +292,7 @@ static void *host_start(void *p) {
     if (!exit_setjmp(t)) t->result=t->entry(t->argument);
     runtime_thread_keys_cleanup();
     pthread_mutex_lock(&lock); t->finished=1; ++exited; pthread_mutex_unlock(&lock);
+    UW_BEGIN(UW_EXITED,0);
     return t->result;
 }
 static int32_t create(GuestThread **out,ThreadAttr **attr_slot,GuestEntry entry,void *argument,const char *name) {
@@ -333,7 +338,7 @@ static ABI int32_t thread_join(GuestThread *t,void **result) {
     if (t->detached || t->joined) return ERR(22);
     t->joined=1;
     void *value=NULL;
-    int e=pthread_join(t->host,&value);
+    int e=UW_CALL(UW_JOIN,t,pthread_join(t->host,&value));
     if (e) { fprintf(stderr,"STOP: host pthread_join failed: %d\n",e); exit(21); }
     if (result) *result=t->result;
     pthread_mutex_lock(&lock); ++joined_count; pthread_mutex_unlock(&lock);

@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.7)
+## Teste atual (0.6.8)
 
-Veja [LEIA-ME-0.6.7.txt](LEIA-ME-0.6.7.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.8.txt](LEIA-ME-0.6.8.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -275,3 +275,20 @@ IO profile/IO loading a cada cinco segundos, sem ler memoria guest no monitor.
 O motivo do watchdog e descarregado nos dois logs antes do snapshot final.
 A preparacao segue limitada a 300 s e a listagem de imports a 90 s.
 Nao ha correcao confirmada do carregamento ou de DEVICE_HUNG nesta versao.
+
+## v0.6.8: tarefas durante o carregamento
+
+A 0.6.7 permaneceu na tela de carregamento ate o watchdog de 900 segundos.
+A ultima leitura instrumentada terminou perto de 27 segundos; a memoria
+final foi 3348/5120 MiB. Os comandos graficos e consultas ao controle
+continuaram. Nao houve DEVICE_HUNG registrado nesse teste.
+
+A 0.6.8 identifica nomes de tarefas e chamadas de espera, sem desbloquear
+objetos nem mudar resultados. O monitor so le registros atomicos limitados
+a 256 threads; slots nao sao reutilizados. Nao suspende threads, nao consulta
+a GPU e nao desreferencia enderecos guest. call_site e um retorno de chamada
+de API; wrappers podem mostrar enderecos do runtime. Nao e o PC atual.
+Threads sem espera instrumentada aparecem como guest_or_untraced; isso
+nao prova progresso. Fibras que compartilham threads nao sao separadas.
+Para o mesmo carregamento persistente, dois minutos ja permitem coletar
+varios snapshots. O limite de seguranca continua em 15 minutos.

@@ -3,6 +3,7 @@
  * use FreeBSD numbering; host errno values never reach the guest directly. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "runtime_wait_trace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -108,7 +109,9 @@ uint64_t runtime_process_time_counter(void) { return process_time_counter(); }
 uint64_t runtime_tsc_frequency(void) { return tsc_frequency(); }
 static int sleep_ns(uint64_t ns) {
 #ifdef _WIN32
+    UW_BEGIN(UW_SLEEP,ns);
     compat_sleep_ns(ns);
+    UW_END(0);
 #else
     struct timespec t={.tv_sec=(time_t)(ns/1000000000),.tv_nsec=(long)(ns%1000000000)};
     while (nanosleep(&t,&t)) if (errno!=EINTR) return errno;

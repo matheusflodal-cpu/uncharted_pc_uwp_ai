@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include "prepare_game.h"
 #include "boot_trace.h"
+#include "runtime_wait_trace.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -195,7 +196,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.7 — loading I/O diagnostics and extended boot window");
+    std::puts("Uncharted UWP 0.6.8 — guest task and wait diagnostics");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -307,6 +308,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode=="boot") {
         UnchartedBootTrace::Enable();
+        uncharted_wait_enable();
         std::puts("UWP boot trace enabled: heartbeat every 5 seconds; hard boot limit 900 seconds");
         values.erase(std::find(values.begin(),values.end(),"--cpu-only"));
         std::puts("EXPERIMENTAL guest boot: renderer linked; native Xbox input and XAudio2/AJM linked; online and other system guest APIs remain unavailable");
@@ -364,6 +366,7 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
                 if(UnchartedBootTrace::enabled.load() && now-last>=5000) {
                     UnchartedBootTrace::Snapshot();
                     runtime_file_profile_report();
+                    uncharted_wait_snapshot(stdout);
 #ifdef UNCHARTED_GUEST_INPUT
                     runtime_pad_boot_snapshot(stdout);
 #endif
@@ -389,6 +392,7 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
                     std::fflush(stderr);
                     UnchartedBootTrace::Snapshot();
                     runtime_file_profile_report();
+                    uncharted_wait_snapshot(stdout);
 #ifdef UNCHARTED_GUEST_INPUT
                     runtime_pad_boot_snapshot(stdout);
 #endif

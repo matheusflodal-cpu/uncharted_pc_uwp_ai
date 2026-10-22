@@ -24,13 +24,15 @@ def main():
               "-Wno-unused-function", "-pthread", "-I.", "-Isrc"]
     names = ["runtime", "runtime_content", "runtime_file", "runtime_kernel", "runtime_memory",
              "runtime_mutex", "runtime_rtc", "runtime_rwlock", "runtime_savedata", "runtime_sema",
-             "runtime_services", "runtime_thread", "runtime_time", "runtime_fiber", "compat_win"]
+             "runtime_services", "runtime_thread", "runtime_time", "runtime_fiber", "runtime_wait_trace", "compat_win"]
     run(*common, "-no-pie", "-rdynamic", "src/probe.c", *[f"src/{n}.c" for n in names],
         "xbox/platform/diagnostic_services.c", "-lm", "-o", OUT / "bb-probe")
     for source, name in [("tests/test_uwp_paged_io.c", "paged-io"),
                          ("tests/test_file_mods.c", "file-mods")]:
         run(*common, source, "-o", OUT / name)
         run(OUT / name)
+    run(*common,"tests/test_uwp_wait_trace.c","-o",OUT/"wait-trace-contract")
+    run(OUT/"wait-trace-contract")
     run(*common,"tests/test_uwp_dzn_map.c","-o",OUT/"dzn-map-contract")
     run(OUT/"dzn-map-contract")
     run(*common, "tests/test_uwp_dzn_diagnostics.c", "-o", OUT / "dzn-diagnostic-contract")

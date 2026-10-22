@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <atomic>
+#ifdef UNCHARTED_UWP
+#include "runtime_wait_trace.h"
+#endif
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
@@ -511,7 +514,13 @@ int PS4_SYSV_ABI sceKernelWaitEqueue(OrbisKernelEqueue eq, OrbisKernelEvent* ev,
         return ORBIS_KERNEL_ERROR_EINVAL;
     }
 
+#ifdef UNCHARTED_UWP
+    uncharted_wait_begin(UW_EQUEUE,static_cast<uintptr_t>(eq),reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
+#endif
     *out = equeue->WaitForEvents(ev, num, timo);
+#ifdef UNCHARTED_UWP
+    uncharted_wait_end(*out);
+#endif
 
     if (*out == 0) {
         return ORBIS_KERNEL_ERROR_ETIMEDOUT;

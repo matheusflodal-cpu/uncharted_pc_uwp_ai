@@ -16,11 +16,15 @@ option(UNCHARTED_GRAPHICS_PROBE "Build the Xbox graphics presentation probe" OFF
 option(UNCHARTED_COMPILE_RENDERER "Compile the experimental renderer library without enabling gameplay" OFF)
 set(cpu_sources runtime runtime_content runtime_file runtime_kernel runtime_memory
   runtime_mutex runtime_rtc runtime_rwlock runtime_savedata runtime_sema runtime_services
-  runtime_thread runtime_time runtime_fiber compat_win probe)
+  runtime_thread runtime_time runtime_fiber runtime_wait_trace compat_win probe)
 list(TRANSFORM cpu_sources PREPEND "${UNCHARTED_ROOT}/src/")
 list(TRANSFORM cpu_sources APPEND ".c")
 add_executable(uncharted_uwp WIN32 platform/main.cpp platform/prepare_game.cpp platform/runtime_compat.c
   platform/diagnostic_services.c ${cpu_sources})
+add_executable(uncharted_wait_trace_contract "${UNCHARTED_ROOT}/tests/test_uwp_wait_trace.c" platform/runtime_compat.c)
+target_include_directories(uncharted_wait_trace_contract PRIVATE "${UNCHARTED_ROOT}/src" platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
+target_compile_definitions(uncharted_wait_trace_contract PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN _TIMESPEC_DEFINED _MODE_T_ _CRT_SECURE_NO_WARNINGS)
+target_link_libraries(uncharted_wait_trace_contract PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
 add_executable(uncharted_prepare_contract platform/prepare_contract.cpp platform/prepare_game.cpp)
 add_executable(uncharted_boot_trace_contract "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace.cpp"
   "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace_peer.cpp")
@@ -77,7 +81,7 @@ endif()
 foreach(cpu_target IN LISTS cpu_targets)
 target_include_directories(${cpu_target} PRIVATE "${UNCHARTED_ROOT}" "${UNCHARTED_ROOT}/src"
   platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
-target_compile_definitions(${cpu_target} PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN
+target_compile_definitions(${cpu_target} PRIVATE UNCHARTED_UWP UNCHARTED_WAIT_TRACE NOMINMAX WIN32_LEAN_AND_MEAN
   _CRT_SECURE_NO_WARNINGS _TIMESPEC_DEFINED _MODE_T_)
 target_compile_options(${cpu_target} PRIVATE /W3
   $<$<COMPILE_LANGUAGE:C>:/clang:-masm=att> $<$<COMPILE_LANGUAGE:CXX>:/EHsc>)

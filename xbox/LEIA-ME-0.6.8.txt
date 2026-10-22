@@ -1,0 +1,25 @@
+UNCHARTED UWP 0.6.8 — TAREFAS E ESPERAS DURANTE O CARREGAMENTO
+
+Atualize o APPX, mantenha gpu-sync.txt em normal e use o mesmo dump.
+Escolha Uncharted 3 e tente iniciar com o controle ligado.
+
+Na 0.6.7, o jogo continuou desenhando ate 15 minutos, mas nao chegou ao
+menu. A ultima leitura de arquivo terminou perto de 27 segundos. O teste
+encerrou pelo watchdog, sem registrar DEVICE_HUNG nesta tentativa.
+
+A 0.6.8 registra os nomes das tarefas e suas esperas em mutex, condicao,
+semaforo, join, sleep, rwlock e fila de eventos. Tambem marca leituras.
+O monitor nao suspende threads, nao le a memoria do jogo e nao tenta
+liberar esperas. O tempo limite de 15 minutos continua ativo.
+
+Se a mesma tela de carregamento persistir por cerca de dois minutos,
+pode fechar e guardar loader.log e errors.log antes de reabrir; nao
+precisa repetir os 15 minutos. Esses logs devem mostrar as tarefas que
+continuam esperando. Nao apague caches nem copie o jogo novamente.
+
+Esta versao investiga o bloqueio. Menu e gameplay nao estao confirmados.
+Os registros mostram threads do host e chamadas instrumentadas; fibras
+podem compartilhar uma thread. guest_or_untraced nao significa que uma
+tarefa esta avancando, e uma espera longa nao prova que ela esta errada.
+O campo call_site e um retorno de API, nao uma amostra do PC atual.
+O pacote nao inclui arquivos do jogo.

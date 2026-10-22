@@ -5,6 +5,7 @@
  * Paths containing ".." components are rejected rather than normalized. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "runtime_wait_trace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -458,6 +459,7 @@ int runtime_file_paged_selftest(void *buffer,uint64_t size) {
 static int64_t do_read(int fd,void *buffer,uint64_t size) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
+    UW_BEGIN(UW_FILE,fd);
     const uint64_t started=io_started();
     ssize_t n;
 #ifdef UNCHARTED_UWP
@@ -465,7 +467,7 @@ static int64_t do_read(int fd,void *buffer,uint64_t size) {
     else
 #endif
     n=read_full(h,buffer,size,-1);
-    const int error=errno; io_finished(started,size,n); errno=error;
+    const int error=errno; io_finished(started,size,n); UW_END(n); errno=error;
     if (n<0) { if (audio_trace()) printf("Audio trace: read(fd %d, %llu) failed, errno %d\n",fd,(unsigned long long)size,errno); return -errno; }
     trace_bank_read(fd,size,-1,n);
     __atomic_add_fetch(&reads,1,__ATOMIC_RELAXED); __atomic_add_fetch(&bytes_read,(uint64_t)n,__ATOMIC_RELAXED);
@@ -474,6 +476,7 @@ static int64_t do_read(int fd,void *buffer,uint64_t size) {
 static int64_t do_pread(int fd,void *buffer,uint64_t size,int64_t offset) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
+    UW_BEGIN(UW_FILE,fd);
     const uint64_t started=io_started();
     ssize_t n;
 #ifdef UNCHARTED_UWP
@@ -481,7 +484,7 @@ static int64_t do_pread(int fd,void *buffer,uint64_t size,int64_t offset) {
     else
 #endif
     n=read_full(h,buffer,size,offset);
-    const int error=errno; io_finished(started,size,n); errno=error;
+    const int error=errno; io_finished(started,size,n); UW_END(n); errno=error;
     if (n<0) { if (audio_trace()) printf("Audio trace: pread(fd %d, %llu @%lld) failed, errno %d\n",fd,(unsigned long long)size,(long long)offset,errno); return -errno; }
     trace_bank_read(fd,size,offset,n);
     __atomic_add_fetch(&reads,1,__ATOMIC_RELAXED); __atomic_add_fetch(&bytes_read,(uint64_t)n,__ATOMIC_RELAXED);

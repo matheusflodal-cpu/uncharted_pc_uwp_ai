@@ -1,6 +1,7 @@
 /* Guest mutex handles backed by host pthreads. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "runtime_wait_trace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,7 +89,7 @@ static int32_t ensure_mutex(GuestMutex **mutex) {
 static ABI int32_t mutex_lock(GuestMutex **mutex) {
     int32_t e = ensure_mutex(mutex);
     if (e) return e;
-    e = orbis_error(pthread_mutex_lock(&(*mutex)->native));
+    e = orbis_error(UW_CALL(UW_MUTEX,mutex,pthread_mutex_lock(&(*mutex)->native)));
     if (!e) ++locks;
     return e;
 }
@@ -168,14 +169,14 @@ static ABI int32_t cond_wait(GuestCond **cond, GuestMutex **mutex) {
     if (e) return e;
     if (!mutex || (uintptr_t)*mutex < 3) return orbis_error(EINVAL);
     ++waits;
-    return orbis_error(pthread_cond_wait(&(*cond)->native, &(*mutex)->native));
+    return orbis_error(UW_CALL(UW_CONDITION,cond,pthread_cond_wait(&(*cond)->native, &(*mutex)->native)));
 }
 static int32_t cond_wait_until(GuestCond **cond, GuestMutex **mutex, const struct timespec *end) {
     int32_t e = ensure_cond(cond);
     if (e) return e;
     if (!mutex || (uintptr_t)*mutex < 3 || !end) return orbis_error(EINVAL);
     ++waits;
-    return timed_error(pthread_cond_timedwait(&(*cond)->native, &(*mutex)->native, end));
+    return timed_error(UW_CALL(UW_CONDITION,cond,pthread_cond_timedwait(&(*cond)->native, &(*mutex)->native, end)));
 }
 static ABI int32_t cond_timedwait(GuestCond **cond, GuestMutex **mutex, uint32_t usec) {
     struct timespec end;

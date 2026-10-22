@@ -2,6 +2,7 @@
    lifetime, static initialization and ownership; waiting happens outside it. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "runtime_wait_trace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,7 +92,7 @@ static int32_t acquire(Rwlock **handle, enum Operation op, const GuestTime *time
     pthread_mutex_unlock(&registry_lock);
     /* Timed operations first try the lock, matching POSIX timeout validation. */
     if (attempt || timed) e=writer ? pthread_rwlock_trywrlock(&r->native) : pthread_rwlock_tryrdlock(&r->native);
-    else e=writer ? pthread_rwlock_wrlock(&r->native) : pthread_rwlock_rdlock(&r->native);
+    else e=UW_CALL(UW_RWLOCK,r,writer ? pthread_rwlock_wrlock(&r->native) : pthread_rwlock_rdlock(&r->native));
     if (timed && e==EBUSY) {
         if (!time || time->nanoseconds<0 || time->nanoseconds>=1000000000) e=EINVAL;
         else {
