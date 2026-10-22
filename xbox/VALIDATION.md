@@ -721,3 +721,17 @@ logos followed by loading; menu/gameplay remain unconfirmed.
 loading I/O observability and watchdog log flushing. It retains the real
 device-loss failure path and does not bypass commands, errors or loading.
 Windows package validation and Xbox results pending.
+
+### v0.6.7 completed build validation
+
+Source 4fe72ff9e95ea36c4a7e46719372485eaa63efac passed renderer run
+39712704424 (job 119607602540). CPU run 39712704506 and graphics run
+39712704392 also passed. The real Dozen map-recording and 80-variant
+integer fragment driver contracts passed, along with native preparation,
+pad, overlay, boot tracing, dialog, AudioOut, AJM, paging, POSIX memory and
+UWP import checks. APPX 0.6.7.0 was signed successfully.
+
+Final Linux portable checks passed (44 Python tests and native contracts).
+The updated real paged-I/O regression additionally checks active-operation
+balance, a failing positioned read, interval reset, and preservation of
+active/last-completion state when reporting. Xbox 0.6.7 is untested.
