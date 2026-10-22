@@ -1,0 +1,25 @@
+UNCHARTED UWP 0.6.10 — ORIGEM DAS PAUSAS NO CARREGAMENTO
+
+Esta versao corrige o endereco registrado para as chamadas de pausa.
+Na 0.6.9, ele apontava para um helper do runtime. Agora e capturado na
+entrada da API chamada pelo jogo, inclusive em sceKernelNanosleep.
+Isso ajuda a localizar a repeticao de esperas; nao confirma uma correcao
+para chegar ao menu. Menu e gameplay ainda nao foram confirmados.
+
+Quando puder testar:
+1. Atualize o APPX; mantenha o mesmo jogo e os caches.
+2. Mantenha gpu-sync.txt em normal e gpu-execution.txt em serial.
+3. Mantenha task-trace.txt com on no LocalState. A pasta Opcoes no ZIP
+   contem um modelo; o APPX nao copia esse modelo automaticamente.
+4. Inicie normalmente. Se continuar no carregamento por cerca de dois
+   minutos, feche e guarde loader.log e errors.log antes de reabrir.
+   Se fechar antes, guarde os dois logs da mesma forma.
+
+Os padroes continuam normal / serial / task tracing off / DRED on.
+Com task-trace off, os novos enderecos nao sao registrados.
+O limite automatico continua 15 minutos. Nao e preciso repetir testes
+nos modos conservador/parallel nem transferir o jogo novamente.
+
+O endereco registrado e o retorno da chamada de pausa; nao e uma amostra
+continua do processador nem revela, sozinho, a condicao que o jogo espera.
+Nenhum arquivo do jogo incluido.

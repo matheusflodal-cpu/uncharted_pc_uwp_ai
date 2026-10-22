@@ -107,28 +107,36 @@ static ABI uint64_t tsc_frequency(void) {
 uint64_t runtime_process_time_us(void) { return process_time(); }
 uint64_t runtime_process_time_counter(void) { return process_time_counter(); }
 uint64_t runtime_tsc_frequency(void) { return tsc_frequency(); }
-static int sleep_ns(uint64_t ns) {
+/* Capture only at the exported ABI entry, never by unwinding a guest stack.
+ * A helper's return address points inside this runtime on Windows. Explicit
+ * forwarding also keeps sceKernelNanosleep out of the POSIX wrapper's frame. */
+static int sleep_ns(uint64_t ns,uintptr_t caller) {
+    (void)caller;
+    int result=0;
+    UW_BEGIN_AT(UW_SLEEP,ns,caller);
 #ifdef _WIN32
-    UW_BEGIN(UW_SLEEP,ns);
     compat_sleep_ns(ns);
-    UW_END(0);
 #else
     struct timespec t={.tv_sec=(time_t)(ns/1000000000),.tv_nsec=(long)(ns%1000000000)};
-    while (nanosleep(&t,&t)) if (errno!=EINTR) return errno;
+    while (nanosleep(&t,&t)) if (errno!=EINTR) { result=errno; break; }
 #endif
-    return 0;
+    UW_END(result);
+    return result;
 }
-static ABI int32_t kernel_usleep(uint32_t usec) { sleep_ns((uint64_t)usec*1000); return 0; }
-static ABI int32_t posix_usleep(uint32_t usec) { sleep_ns((uint64_t)usec*1000); return 0; }
-static ABI uint32_t posix_sleep(uint32_t seconds) { sleep_ns((uint64_t)seconds*1000000000); return 0; }
-static ABI int32_t posix_nanosleep(const GuestTimespec *rq,GuestTimespec *rem) {
+static ABI UW_ENTRY int32_t kernel_usleep(uint32_t usec) { sleep_ns((uint64_t)usec*1000,UW_CALLER); return 0; }
+static ABI UW_ENTRY int32_t posix_usleep(uint32_t usec) { sleep_ns((uint64_t)usec*1000,UW_CALLER); return 0; }
+static ABI UW_ENTRY uint32_t posix_sleep(uint32_t seconds) { sleep_ns((uint64_t)seconds*1000000000,UW_CALLER); return 0; }
+static int32_t nanosleep_impl(const GuestTimespec *rq,GuestTimespec *rem,uintptr_t caller) {
     if (!rq || rq->nsec<0 || rq->nsec>=1000000000 || rq->sec<0) return fail_posix(EINVAL);
-    sleep_ns((uint64_t)rq->sec*1000000000+(uint64_t)rq->nsec);
+    sleep_ns((uint64_t)rq->sec*1000000000+(uint64_t)rq->nsec,caller);
     if (rem) { rem->sec=0; rem->nsec=0; }
     return 0;
 }
-static ABI int32_t kernel_nanosleep(const GuestTimespec *rq,GuestTimespec *rem) {
-    return posix_nanosleep(rq,rem) ? ERR(*runtime_errno()) : 0;
+static ABI UW_ENTRY int32_t posix_nanosleep(const GuestTimespec *rq,GuestTimespec *rem) {
+    return nanosleep_impl(rq,rem,UW_CALLER);
+}
+static ABI UW_ENTRY int32_t kernel_nanosleep(const GuestTimespec *rq,GuestTimespec *rem) {
+    return nanosleep_impl(rq,rem,UW_CALLER) ? ERR(*runtime_errno()) : 0;
 }
 typedef struct { int32_t minuteswest, dsttime; } GuestTimezone;
 static ABI int32_t kernel_gettimezone(GuestTimezone *tz) {

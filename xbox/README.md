@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.9)
+## Teste atual (0.6.10)
 
-Veja [LEIA-ME-0.6.9.txt](LEIA-ME-0.6.9.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.10.txt](LEIA-ME-0.6.10.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -312,3 +312,19 @@ contadores, proxima operacao apenas com historico completo de ate 65536
 entradas, e VA de page fault. Nao e garantia de suporte no Xbox ou de
 localizacao exata da instrucao. Nao ha bypass de erros/comandos.
 Consulte LEIA-ME-0.6.9.txt para os controles de comparacao.
+
+## v0.6.10: origem das pausas no carregamento
+
+Na 0.6.9, o teste serial com rastreamento mostrou a tarefa principal repetindo
+pausas curtas. O endereco dessas pausas apontava para um helper do runtime,
+pois era capturado dentro de sleep_ns. A 0.6.10 captura o endereco na entrada
+ABI e o encaminha explicitamente, inclusive para sceKernelNanosleep.
+As cinco entradas recebem noinline quando o rastreamento e compilado.
+Nao ha caminhada da pilha nem leitura de instrucoes ou dados do jogo.
+
+Os controles e os padroes graficos continuam os da 0.6.9. Para obter os
+enderecos corrigidos, mantenha task-trace.txt em on no LocalState. O pacote
+inclui esse arquivo como modelo em Opcoes; nao o instala automaticamente.
+O endereco e o retorno da chamada a API, nao o PC atual nem a condicao
+verificada pelo jogo. Outras esperas que usam helpers intermediarios ainda
+podem apresentar enderecos do runtime. Nao ha confirmacao de menu/gameplay.

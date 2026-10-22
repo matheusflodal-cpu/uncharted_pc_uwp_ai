@@ -33,6 +33,8 @@ def main():
         run(OUT / name)
     run(*common,"tests/test_uwp_wait_trace.c","-o",OUT/"wait-trace-contract")
     run(OUT/"wait-trace-contract")
+    run(*common,"tests/test_uwp_sleep_trace.c","-o",OUT/"sleep-trace-contract")
+    run(OUT/"sleep-trace-contract")
     run(*common,"tests/test_uwp_dzn_map.c","-o",OUT/"dzn-map-contract")
     run(OUT/"dzn-map-contract")
     run(*common, "tests/test_uwp_dzn_diagnostics.c", "-o", OUT / "dzn-diagnostic-contract")

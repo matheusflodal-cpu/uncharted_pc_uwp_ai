@@ -825,3 +825,35 @@ No game dump is available here; no menu/gameplay test was performed.
 Primary API documentation:
 https://learn.microsoft.com/windows/win32/direct3d12/use-dred
 https://learn.microsoft.com/windows/win32/api/d3d12/ns-d3d12-d3d12_auto_breadcrumb_node
+
+## v0.6.9 serial Xbox results and v0.6.10 sleep-origin diagnosis
+
+Serial graphics, normal synchronization, task tracing off: final 202411 ms,
+124356 draws, 35838 dispatches, 11442 flip requests; no recorded device loss.
+User reported smoother loading animation and faster entry, but no menu.
+Task tracing on: final 155508 ms, 94426 draws, 27675 dispatches and 8721
+flip requests. 136 task slots, none dropped. Main repeatedly requests 1 ms
+sleeps; its call count increases throughout. Job-worker calls continue
+returning. FIOS callback/IO condition waits settle around 20 seconds with no
+active reads. Neither idle IO nor unused compute event waits establishes a
+bug. Bridge presentation continues returning. No DEVICE_HUNG was recorded.
+These counters measure runtime calls, not unique frames or gameplay FPS.
+
+The main sleep call_site in 0.6.9 is inside the native kernel wrapper:
+sleep_ns captured its own return address. Version 0.6.10 explicitly captures
+return address zero at each exported sleep ABI entry (noinline when tracing
+is compiled) and forwards it through helpers. sceKernelNanosleep no longer
+captures the intermediate POSIX entry. No guest stack unwind, code/data
+reads, forced wakeup, sleep duration change or shader skipping is added.
+Other APIs with intermediate helpers may still expose native helper sites.
+This narrows the next investigation; it does not identify the polling
+predicate, prove why loading is incomplete or fix the menu transition.
+
+The new contract calls all five actual exported sleep entries through an
+assembly SysV caller without unwind metadata or a frame pointer. It checks
+the exact return label, nanosecond conversion, successful return, guest and
+host errno, remainder clearing, disabled tracing, invalid pointer/time
+handling and snapshot output. Linux optimized contract passed, and the same contract rejects the old
+source at the exact-caller assertion. All 44 Python tests and portable
+native contracts passed. Clang is unavailable locally; Windows clang-cl
+build remains pending. Xbox 0.6.10 is untested.
