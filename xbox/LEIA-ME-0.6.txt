@@ -1,0 +1,32 @@
+UNCHARTED UWP 0.6 — AUDIO NATIVO E DECODIFICADORES
+
+Ainda nao ha menu do Uncharted ou gameplay confirmado. Nao inclui o jogo.
+
+INSTALAR
+Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+VCLibs em Dependencies. Nao precisa copiar o dump novamente.
+Se um run.txt antigo pular o menu, substitua-o pelo da pasta Opcoes.
+
+1. TESTAR O SOM
+Abra Diagnosticos > Testar audio > Comecar. O teste toca um tom baixo por
+cerca de dois segundos: primeiro a esquerda e depois a direita.
+Resultado 0 confirma que os buffers foram enviados sem erro; diga tambem
+se ouviu o som. Copie loader.log e errors.log ANTES de reabrir o app.
+
+2. TESTAR O JOGO
+Reabra e escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+Envie os novos loader.log E errors.log, mesmo se fechar ou ficar preto.
+Identifique quais logs sao do som e quais sao do jogo.
+A tentativa de boot tem limite de 90 segundos depois da preparacao.
+
+O QUE MUDOU
+AudioOut agora usa XAudio2, com PCM inteiro/float, volume, mistura para
+estereo e cadencia dos buffers. AJM usa ATRAC9 (LibAtrac9) e MP3 (FFmpeg),
+como no projeto original. AAC continua sem implementacao no runtime AJM.
+Falhas do dispositivo de som sao reportadas; nao sao sucesso silencioso.
+Os buffers de conversao ficam fora da pilha pequena das threads do jogo.
+Rede/PSN e outros servicos ainda podem interromper a inicializacao.
+
+A 0.5.1 passou da queda do overlay e executou codigo original do Uncharted 3,
+parando em sceAudioOutInit. O primeiro quadro da ponte de video nao prova
+que o jogo renderizou uma cena. Nenhuma versao e considerada jogavel ainda.

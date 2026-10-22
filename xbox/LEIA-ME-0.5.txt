@@ -1,0 +1,53 @@
+UNCHARTED UWP 0.5 — CONTROLE NATIVO E MEMORIA DO RUNTIME
+
+Ainda nao ha gameplay confirmado. Nao inclui arquivos do jogo.
+Use o mesmo dump que ja esta no pendrive; nao precisa copiar novamente.
+
+INSTALAR
+Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+VCLibs da pasta Dependencies. O app continua com a identidade UnchartedUwpProbe.
+Se um run.txt antigo pular o menu, apague-o ou substitua-o pelo da pasta Opcoes.
+
+1. TESTE DO CONTROLE (SEM PRECISAR DO DUMP)
+Abra o aplicativo e escolha Diagnosticos > Testar controle > Comecar.
+Durante 20 segundos a tela ficara sem imagem:
+- Aperte A, B, X e Y.
+- Gire os DOIS analogicos em circulos, passando pelos quatro lados.
+- Aperte LT e RT ate o fim.
+- Ao pressionar Y, o app solicita uma vibracao curta.
+O teste termina sozinho. Resultado 0 exige os quatro botoes, movimento dos
+quatro eixos e os dois gatilhos. Resultado 22 significa teste incompleto ou
+falha de leitura; o log mostra o que foi observado.
+Envie loader.log e errors.log e diga se sentiu a vibracao. O log confirma o
+envio do comando; nao consegue confirmar fisicamente o motor do controle.
+Guarde esses logs antes de abrir o app outra vez, pois sao reescritos.
+
+2. TESTE DO JOGO REAL
+Escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+Esta opcao inicializa a GPU e tenta executar o codigo do seu jogo. Pode parar
+antes do menu: audio, rede/PSN e outros servicos do sistema ainda faltam.
+Envie loader.log E errors.log dessa tentativa, mesmo se a tela ficar preta
+ou o app fechar. A tentativa tem limite de 90 segundos apos a preparacao.
+Esta versao nao garante chegar ao menu nem ser jogavel.
+
+A opcao Conferir servicos continua disponivel. Para o MESMO executavel de
+Uncharted 3 do log anterior, a expectativa e cair de 59 para 50 ausentes:
+sete imports de controle e dois de memoria passaram a ter implementacao.
+Resultado 20 ainda e esperado e nao significa falha de RAM.
+
+O QUE MUDOU
+- Controle: usa Windows.Gaming.Input, sem SDL. Le botoes, analogicos e gatilhos;
+  informa desconexao/reconexao e envia vibracao aos motores. View corresponde
+  ao clique do touchpad. Nao simula gestos de toque nem sensores de movimento.
+- A cor solicitada para a barra de luz fica apenas no estado virtual: o controle
+  Xbox nao possui a barra RGB do DualShock 4.
+- Memoria: mmap anonimo usa o backend de memoria do guest, com retorno de errno;
+  msync valida a regiao anonima; munmap usa o retorno POSIX. Mapeamento de
+  arquivos ainda nao e implementado e retorna erro explicito.
+
+PASTA DO DUMP
+USB:\dumps\Uncharted deve conter diretamente eboot.bin, os executaveis big2/big3
+que estiverem no dump, sce_sys, sce_module, u1data/u2data/u3data e os demais
+arquivos originais. Preserve toda a estrutura. O dump e somente lido; a
+preparacao e salva no LocalState. SELF cifrado/comprimido nao e aceito.
+Nao envie arquivos do jogo nem a pasta Prepared; envie somente os logs.

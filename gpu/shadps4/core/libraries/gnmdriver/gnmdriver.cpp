@@ -2940,7 +2940,7 @@ int PS4_SYSV_ABI Func_F916890425496553() {
     return ORBIS_OK;
 }
 
-void RegisterLib(Core::Loader::SymbolsResolver* sym) {
+void InitializeDriver() {
     LOG_INFO(Lib_GnmDriver, "Initializing presenter");
     liverpool = std::make_unique<AmdGpu::Liverpool>();
     presenter = std::make_unique<Vulkan::Presenter>(*g_window, liverpool.get());
@@ -2957,6 +2957,10 @@ void RegisterLib(Core::Loader::SymbolsResolver* sym) {
     Platform::IrqC::Instance()->Register(Platform::InterruptId::GpuIdle, ResetSubmissionLock,
                                          nullptr);
 
+}
+
+// Register addresses without constructing a Vulkan device, presenter or video thread.
+void RegisterSymbols(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("b0xyllnVY-I", "libSceGnmDriver", 1, "libSceGnmDriver", sceGnmAddEqEvent);
     LIB_FUNCTION("b08AgtPlHPg", "libSceGnmDriver", 1, "libSceGnmDriver", sceGnmAreSubmitsAllowed);
     LIB_FUNCTION("ihxrbsoSKWc", "libSceGnmDriver", 1, "libSceGnmDriver", sceGnmBeginWorkload);
@@ -3316,5 +3320,11 @@ void RegisterLib(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("ut57TBmRQN0", "libSceGnmWaitFreeSubmit", 1, "libSceGnmDriver",
                  Func_BADE7B4C199140DD);
 };
+
+// Preserve the desktop entry point and its initialization order.
+void RegisterLib(Core::Loader::SymbolsResolver* sym) {
+    InitializeDriver();
+    RegisterSymbols(sym);
+}
 
 } // namespace Libraries::GnmDriver

@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -39,7 +42,12 @@ constexpr static auto SpirvVersion1_6 = 0x00010600U;
 
 constexpr static std::array DescriptorHeapSizes = {
     vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 512},
-    vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer, 8192},
+    vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer,
+#ifdef UNCHARTED_UWP
+                          16384},
+#else
+                          8192},
+#endif
     vk::DescriptorPoolSize{vk::DescriptorType::eSampledImage, 8192},
     vk::DescriptorPoolSize{vk::DescriptorType::eStorageImage, 1024},
     vk::DescriptorPoolSize{vk::DescriptorType::eSampler, 1024},
@@ -287,7 +295,7 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         .max_viewport_width = instance.GetMaxViewportWidth(),
         .max_viewport_height = instance.GetMaxViewportHeight(),
         .max_shared_memory_size = instance.MaxComputeSharedMemorySize(),
-        .supported_spirv = SpirvVersion1_6,
+        .supported_spirv = instance.ApiVersion() >= VK_API_VERSION_1_3 ? SpirvVersion1_6 : 0x00010500,
         .subgroup_size = instance.SubgroupSize(),
         .sparse_page_shift = sparse_page_shift,
         .support_int8 = instance.IsShaderInt8Supported(),
@@ -295,6 +303,7 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         .support_int64 = instance.IsShaderInt64Supported(),
         .support_float16 = instance.IsShaderFloat16Supported(),
         .support_float64 = instance.IsShaderFloat64Supported(),
+        .support_demote = instance.ApiVersion() >= VK_API_VERSION_1_3,
         .supports_denorm_behavior_independence =
             vk12_props.denormBehaviorIndependence != vk::ShaderFloatControlsIndependence::eNone,
         .supports_rounding_mode_independence =
@@ -429,6 +438,9 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         const auto pipeline_hash = std::hash<GraphicsPipelineKey>{}(sel.graphics_key);
         LOG_INFO(Render_Vulkan, "Compiling graphics pipeline {:#x}", pipeline_hash);
         CompileTimer timer;
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Graphics,pipeline_hash);
+#endif
 
         GraphicsPipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<GraphicsPipeline>(
@@ -460,6 +472,9 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
         const auto pipeline_hash = std::hash<ComputePipelineKey>{}(compute_key);
         LOG_INFO(Render_Vulkan, "Compiling compute pipeline {:#x}", pipeline_hash);
         CompileTimer timer;
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Compute,pipeline_hash);
+#endif
 
         ComputePipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
@@ -793,13 +808,27 @@ bool PipelineCache::RefreshComputeKey() {
 vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::RuntimeInfo& runtime_info,
                                               const std::span<const u32>& code, size_t perm_idx,
                                               Shader::Backend::Bindings& binding) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope shader_trace(UnchartedBootTrace::Kind::Shader,info.pgm_hash);
+#endif
     LOG_INFO(Render_Vulkan, "Compiling {} shader {:#x} {}", info.hw_stage, info.pgm_hash,
              perm_idx != 0 ? "(permutation)" : "");
     DumpShader(code, info.pgm_hash, info.hw_stage, perm_idx, "bin");
     CompileTimer timer;
 
+#ifdef UNCHARTED_UWP
+    const auto ir_program = [&] {
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Translate,info.pgm_hash);
+        return Shader::TranslateProgram(code,pools,info,runtime_info,profile);
+    }();
+    auto spv = [&] {
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Spirv,info.pgm_hash);
+        return Shader::Backend::SPIRV::EmitSPIRV(profile,runtime_info,ir_program,binding);
+    }();
+#else
     const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
     auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
+#endif
     DumpShader(spv, info.pgm_hash, info.hw_stage, perm_idx, "spv");
 
     vk::ShaderModule module;
@@ -982,6 +1011,9 @@ void PipelineCache::DumpShader(std::span<const u32> code, u64 hash, Shader::HwSt
         std::filesystem::create_directories(dump_dir);
     }
     const auto filename = fmt::format("{}.{}", GetShaderName(stage, hash, perm_idx), ext);
+#ifdef UNCHARTED_UWP
+    std::fprintf(stderr,"UWP shader dump: %s (%zu bytes)\n",filename.c_str(),code.size_bytes());
+#endif
     const auto file = IOFile{dump_dir / filename, FileAccessMode::Create};
     file.WriteSpan(code);
 }

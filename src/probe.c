@@ -8,8 +8,13 @@
 #include <time.h>
 #include <cpuid.h>
 #include "runtime.h"
+#include "runtime_code_memory.h"
+#ifdef UNCHARTED_WAIT_TRACE
+#include "runtime_wait_trace.h"
+#include "runtime_poll_profile.h"
+#endif
 #include "gpu/bbgpu.h"
-#if !defined(__x86_64__) || !defined(__GNUC__)
+#if (!defined(__x86_64__) && !defined(_M_X64)) || (!defined(__GNUC__) && !defined(__clang__))
 #error This prototype requires x86-64 GCC or Clang (including MinGW).
 #endif
 #ifdef _WIN32
@@ -40,7 +45,7 @@ static int entered_game;
 static int gpu_enabled;
 int vulkan_smoke(void);
 
-static void fail(const char *message) { fprintf(stderr, "ERROR: %s\n", message); exit(1); }
+static _Noreturn void fail(const char *message) { fprintf(stderr, "ERROR: %s\n", message); exit(1); }
 static uint64_t read64(FILE *f) {
     unsigned char b[8];
     if (fread(b, 1, 8, f) != 8) fail("truncated boot file");
@@ -189,7 +194,7 @@ static void check_cpu(void) {
     while (*name==' ') ++name;
     if (!*name) name="unknown processor";
     fprintf(stderr,"STOP: unsupported CPU %s: missing %s (needs Intel Core 4th generation or newer, or AMD Ryzen)\n",name,missing);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(UNCHARTED_UWP)
     char text[512];
     snprintf(text,sizeof(text),"This processor cannot run the game:\n%s\n\nMissing instructions: %s\n\n"
              "The game uses instructions of the PS4's processor. They need an Intel Core of the 4th "
@@ -226,6 +231,17 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"Fault: exception 0x%08lx at %s (thread %lu)\n",record->ExceptionCode,where,GetCurrentThreadId());
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
+    /* A null indirect call has already pushed its return address. Optimized
+       host code may have no rbp chain, so preserve that candidate separately. */
+    if (!c->Rip && c->Rsp) {
+        uintptr_t candidate=0;
+        SIZE_T got=0;
+        if (ReadProcessMemory(GetCurrentProcess(),(void *)(uintptr_t)c->Rsp,
+                              &candidate,sizeof(candidate),&got) && got==sizeof(candidate)) {
+            describe_address(where,sizeof(where),candidate);
+            fprintf(stderr,"  null-call return-address candidate: %s\n",where);
+        }
+    }
     if (gpu_enabled) bbgpu_dump_guest_writes(info);
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;
@@ -309,6 +325,13 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     DWORD code=record->ExceptionCode;
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
         /* GPU page tracking (write-protected guest pages) is resolved first. */
+#ifdef UNCHARTED_UWP
+        const uintptr_t pc = (uintptr_t)info->ContextRecord->Rip;
+        const int guest = image && pc >= (uintptr_t)image &&
+            pc - (uintptr_t)image < 512 * UINT64_C(1024) * 1024;
+        if (runtime_memory_handle_commit_fault_at(record->ExceptionInformation[1],
+                (int)record->ExceptionInformation[0], guest)) return EXCEPTION_CONTINUE_EXECUTION;
+#endif
         if (gpu_enabled && bbgpu_handle_fault(info,(void *)record->ExceptionInformation[1])) return EXCEPTION_CONTINUE_EXECUTION;
         if (runtime_fault_recover) {
             /* A speculative guest memory read (GPU draw preparation) faulted: the thread resumes
@@ -671,22 +694,78 @@ static void install_guest_hooks(Segment *segments, uint64_t ns) {
  * the expected bytes calls a host function first, with rdi, rsi, the image base and r14 (Microsoft
  * x64 convention on every host). The thunk keeps the guest's registers and flags, so it also
  * works inside a function. */
-static unsigned char *near_image_memory(size_t size) {
+static unsigned char *near_image_memory(size_t size,int writable_only) {
     unsigned char *memory=NULL;
 #ifdef _WIN32
     /* rel32 jumps: within 2 GiB of the image. */
     uint64_t end_of_image=round_page(guest_image_size ? guest_image_size : 1);
     uint64_t base=((uint64_t)(uintptr_t)image+end_of_image+(32u<<20)+0xffff)&~(uint64_t)0xffff;
     for (uint64_t step=0;!memory && step<(1900ull<<20);step+=1u<<16) {
-        memory=VirtualAlloc((void *)(uintptr_t)(base+step),size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
-        if (!memory && (uint64_t)(uintptr_t)image>step+(2u<<20))
-            memory=VirtualAlloc((void *)(uintptr_t)(((uint64_t)(uintptr_t)image-step-(2u<<20))&~(uint64_t)0xffff),
-                                size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+        void *at=(void *)(uintptr_t)(base+step);
+        memory=writable_only ? uw_code_allocate_at(at,size) :
+            VirtualAlloc(at,size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+        if (!memory && (uint64_t)(uintptr_t)image>step+(2u<<20)) {
+            at=(void *)(uintptr_t)(((uint64_t)(uintptr_t)image-step-(2u<<20))&~(uint64_t)0xffff);
+            memory=writable_only ? uw_code_allocate_at(at,size) :
+                VirtualAlloc(at,size,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+        }
     }
 #else
-    (void)size;
+    (void)size;(void)writable_only;
 #endif
     return memory;
+}
+static void install_loading_poll_trace(Segment *segments,uint64_t ns,uint64_t image_size) {
+#ifdef UNCHARTED_WAIT_TRACE
+    const char *enabled=getenv("UNCHARTED_LOADING_TRACE");
+    if(!enabled || strcmp(enabled,"1")) return;
+    int executable=0;
+    for(uint64_t i=0;i<ns;++i) if((segments[i].flags&1) &&
+        UW_POLL_ENTRY>=segments[i].address &&
+        UW_POLL_COMPARE+sizeof(uw_poll_compare)>=segments[i].address &&
+        UW_POLL_COMPARE+sizeof(uw_poll_compare)-segments[i].address<=segments[i].size)
+        executable=1;
+    if(!executable || !mapped(segments,ns,UW_POLL_ENTRY,sizeof(uw_poll_entry)) ||
+       !mapped(segments,ns,UW_POLL_SITE-14,sizeof(uw_poll_loop)) ||
+       !mapped(segments,ns,UW_POLL_WORKER_SITE-18,sizeof(uw_poll_worker)) ||
+       !mapped(segments,ns,UW_POLL_COMPARE,sizeof(uw_poll_compare)) ||
+       !uw_poll_match(image,image_size)) {
+        puts("Loading poll profile: not installed (executable signature differs)");return;
+    }
+    if(!uw_poll_avx()) { puts("Loading poll profile: not installed (AVX state unavailable)");return; }
+    const size_t count=sizeof(uw_poll_sites)/sizeof(*uw_poll_sites),total=count*4096;
+    unsigned char *thunks=near_image_memory(total,1);
+    if(!thunks) {
+#ifdef _WIN32
+        printf("Loading poll profile: not installed (RW allocation failed; win32=%lu)\n",(unsigned long)GetLastError());
+#else
+        puts("Loading poll profile: not installed (RW allocation unavailable)");
+#endif
+        return;
+    }
+    int32_t jumps[sizeof(uw_poll_sites)/sizeof(*uw_poll_sites)];
+    /* Prepare and seal BOTH thunks before publishing either guest branch. */
+    if(!uw_poll_prepare_all(thunks,4096,(uintptr_t)image,
+                            (uintptr_t)uncharted_wait_poll,jumps,uw_code_seal)) {
+#ifdef _WIN32
+        printf("Loading poll profile: not installed (range/emit/RX seal failed; win32=%lu)\n",(unsigned long)GetLastError());
+#else
+        puts("Loading poll profile: not installed (range/emit/RX seal failed)");
+#endif
+        uw_code_release(thunks,total);return;
+    }
+    for(size_t i=0;i<count;++i) {
+        unsigned char *at=image+uw_poll_sites[i];
+        at[0]=0xe9;memcpy(at+1,&jumps[i],4);at[5]=0x90;
+#ifdef _WIN32
+        FlushInstructionCache(GetCurrentProcess(),at,6);
+#endif
+    }
+    printf("Loading poll profile: installed big3-v2 pause=0x%" PRIxPTR " cooperative=0x%" PRIxPTR "; RW-to-RX sealed; per-thread observed values\n",
+           (uintptr_t)image+UW_POLL_SITE,(uintptr_t)image+UW_POLL_WORKER_SITE);
+#else
+    (void)segments;(void)ns;(void)image_size;
+#endif
 }
 static void install_game_callbacks(Segment *segments, uint64_t ns, uint64_t image_size) {
     size_t count=0;
@@ -703,7 +782,7 @@ static void install_game_callbacks(Segment *segments, uint64_t ns, uint64_t imag
             printf("Callbacks: %s at %#" PRIx64 " (patch)\n",c->name,c->offset);
             continue;
         }
-        if (!thunks && !(thunks=near_image_memory(4096))) { printf("Callbacks: no thunk memory\n"); return; }
+        if (!thunks && !(thunks=near_image_memory(4096,0))) { printf("Callbacks: no thunk memory\n"); return; }
         if (used+256>4096) break;
         unsigned char *t=thunks+used, *f=image+c->offset;
         size_t k=0;
@@ -787,7 +866,10 @@ static void patch_eop_tick_wait(uint64_t image_size) {
  * released before the new process opens its own. */
 void runtime_restart(void) {
     fflush(NULL);
-#ifdef _WIN32
+#ifdef UNCHARTED_UWP
+    fputs("STOP: relaunch the UWP app to restart this diagnostic build\n", stderr);
+    _exit(21);
+#elif defined(_WIN32)
     /* run.py sets BB_RESTART_COMMAND: the launch command line, started again (new patches). */
     const char *command=getenv("BB_RESTART_COMMAND");
     puts("Runtime: restarting through run.py");
@@ -813,8 +895,18 @@ void runtime_restart(void) {
 #endif
 }
 
+#ifdef UNCHARTED_UWP
+int uncharted_probe_main(int argc, char **argv) {
+#else
 int main(int argc, char **argv) {
+#endif
     setvbuf(stdout, NULL, _IONBF, 0);
+#ifdef UNCHARTED_UWP
+    if (argc == 2 && !strcmp(argv[1], "--memory-selftest")) {
+        AddVectoredExceptionHandler(1, vectored_fault);
+        return runtime_memory_selftest();
+    }
+#endif
 #ifndef _WIN32
     /* Keep host heap objects handed to the guest (thread handles, TLS) in the
        non-PIE brk heap, i.e. below 1 TiB: the guest packs pointers into 40 bits. */
@@ -826,7 +918,11 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     /* The PS4 user range must stay free of host allocations (GPU driver, heaps), and the guest
      * TCB needs one of the 64 TEB TLS slots before DLLs (Vulkan drivers) take them. */
+#ifdef UNCHARTED_UWP
+    puts("UWP: guest address windows reserved on demand");
+#else
     runtime_memory_reserve();
+#endif
     runtime_thread_tcb_offset();
 #endif
     int cpu_only = 0, strict_imports = 0, list_missing = 0;
@@ -1011,6 +1107,9 @@ int main(int argc, char **argv) {
         printf("%" PRIu64 " of %" PRIu64 " imports missing\n",missing,import_count);
         return missing ? 20 : 0;
     }
+#ifdef UNCHARTED_UWP
+    runtime_memory_start_paging();
+#endif
     image = runtime_image_map(round_page(size), PROT_READ | PROT_WRITE);
     if (!image) image = allocate(round_page(size));
     if (fread(image, 1, size, f) != size || fgetc(f) != EOF) fail("incorrect memory image size");
@@ -1063,6 +1162,7 @@ int main(int argc, char **argv) {
         uint64_t image_end=0;
         for (uint64_t s=0;s<ns;++s) if (segments[s].address+segments[s].size>image_end) image_end=segments[s].address+segments[s].size;
         install_game_callbacks(segments, ns, image_end);
+        install_loading_poll_trace(segments, ns, image_end);
         patch_eop_tick_wait(image_end);
     }
 #ifdef _WIN32

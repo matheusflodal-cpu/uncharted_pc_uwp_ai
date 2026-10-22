@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <thread>
 #include <algorithm>
 #include <cstdio>
@@ -48,6 +51,27 @@ std::array<SubmitRecord, 32> g_recent;
 u64 g_recent_count;
 std::vector<std::pair<const Scheduler*, const Instance*>> g_schedulers;
 } // namespace
+
+// Conservative rendering boundaries from Cosmo/gow3_xbox, 5203195e3fad.
+// Kept outside dynamic rendering scopes and in recorder order.
+bool Scheduler::FullBarriers() {
+    static const bool enabled=[] {
+        const char* value=std::getenv("UNCHARTED_FULL_BARRIERS");
+        const bool on=value && value[0]=='1';
+        std::printf("GPU: conservative render barriers %s\n",on?"on":"off");
+        return on;
+    }();
+    return enabled;
+}
+void Scheduler::RecordFullBarrier(vk::CommandBuffer cmd) {
+    const vk::MemoryBarrier2 barrier{
+        .srcStageMask=vk::PipelineStageFlagBits2::eAllCommands,
+        .srcAccessMask=vk::AccessFlagBits2::eMemoryRead|vk::AccessFlagBits2::eMemoryWrite,
+        .dstStageMask=vk::PipelineStageFlagBits2::eAllCommands,
+        .dstAccessMask=vk::AccessFlagBits2::eMemoryRead|vk::AccessFlagBits2::eMemoryWrite,
+    };
+    cmd.pipelineBarrier2(vk::DependencyInfo{.memoryBarrierCount=1,.pMemoryBarriers=&barrier});
+}
 
 void Scheduler::ReportStall() {
     std::scoped_lock lk{g_recent_mutex};
@@ -165,6 +189,7 @@ void Scheduler::BeginRendering(const RenderState& new_state) {
     };
 
     if (!recording_threaded) {
+        if(FullBarriers()) RecordFullBarrier(current_cmdbuf);
         current_cmdbuf.beginRendering(rendering_info);
         return;
     }
@@ -178,6 +203,7 @@ void Scheduler::BeginRendering(const RenderState& new_state) {
         if (info.pStencilAttachment) {
             info.pStencilAttachment = &stencil_attachment;
         }
+        if(FullBarriers()) RecordFullBarrier(cmdbuf);
         cmdbuf.beginRendering(info);
     });
 }
@@ -187,7 +213,10 @@ void Scheduler::EndRendering() {
         return;
     }
     is_rendering = false;
-    Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRendering(); });
+    Record([](vk::CommandBuffer cmdbuf) {
+        cmdbuf.endRendering();
+        if(FullBarriers()) RecordFullBarrier(cmdbuf);
+    });
 }
 
 void Scheduler::TraceDirectRecording(void* caller) {
@@ -270,6 +299,9 @@ void Scheduler::WaitDeferredSignals() {
 }
 
 void Scheduler::WaitHostCopies() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::CopyWait,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     if (host_copies_done.load(std::memory_order_acquire) < host_copies_issued) {
         BbStats::WaitTimer timer{BbStats::host_copies_wait_ns};
         BbStats::host_copy_waits.fetch_add(1, std::memory_order_relaxed);
@@ -318,6 +350,9 @@ void Scheduler::KickRecording(bool force) {
 }
 
 void Scheduler::SyncRecording() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::RecordSync,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     if (!recording_threaded) {
         return;
     }
@@ -396,6 +431,59 @@ void Scheduler::WaitSubmitted() {
     }
 }
 
+#ifdef UNCHARTED_UWP
+void Scheduler::CheckpointDepthWriteback(u64 id, const char* phase) {
+    // TileImage is called while preparing a draw, outside SubmitExecution.
+    // Serial mode is required by the host configuration. Never call Finish:
+    // its NextTick/callbacks could recycle allocations prepared for this draw.
+    ASSERT(!recording_threaded);
+    const auto device = instance.GetDevice();
+    auto fence = Check(device.createFenceUnique({}));
+    const auto started = GetTickCount64();
+    std::printf("Depth writeback #%llu phase=%s submit_begin tick=%llu\n",
+                id, phase, CurrentTick());
+    std::fflush(stdout);
+    EndRendering();
+    SyncRecording();
+    WaitHostCopies();
+    Check(current_cmdbuf.end());
+    const vk::SubmitInfo info{.commandBufferCount = 1, .pCommandBuffers = &current_cmdbuf};
+    vk::Result result;
+    {
+        std::scoped_lock lock{submit_mutex};
+        result = instance.GetGraphicsQueue().submit(info, *fence);
+    }
+    std::printf("Depth writeback #%llu phase=%s submitted result=%s\n",
+                id, phase, vk::to_string(result).c_str());
+    std::fflush(stdout);
+    if (result == vk::Result::eErrorDeviceLost) DeviceLost(device);
+    Check(result);
+    {
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::GpuWait, id,
+                                        reinterpret_cast<uintptr_t>(this));
+        u64 reported = 0;
+        do {
+            result = device.waitForFences(*fence, true, 100'000'000);
+            const u64 elapsed = GetTickCount64() - started;
+            if (result == vk::Result::eTimeout && elapsed >= reported + 1000) {
+                std::printf("Depth writeback #%llu phase=%s waiting elapsed_ms=%llu\n",
+                            id, phase, elapsed);
+                std::fflush(stdout);
+                reported = elapsed;
+            }
+        } while (result == vk::Result::eTimeout);
+    }
+    std::printf("Depth writeback #%llu phase=%s fence_result=%s elapsed_ms=%llu\n",
+                id, phase, vk::to_string(result).c_str(), GetTickCount64() - started);
+    std::fflush(stdout);
+    if (result == vk::Result::eErrorDeviceLost) DeviceLost(device);
+    Check(result);
+    // The fence, not the scheduler timeline, proves completion of this batch.
+    // Retain the same logical tick until the ordinary submission retires it.
+    AllocateWorkerCommandBuffers();
+}
+#endif
+
 void Scheduler::Wait(u64 tick) {
     if (tick >= work_semaphore.CurrentTick()) {
         // Make sure we are not waiting for the current tick without signalling
@@ -407,6 +495,9 @@ void Scheduler::Wait(u64 tick) {
 }
 
 void Scheduler::PopPendingOperations() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::PendingOps,0,reinterpret_cast<uintptr_t>(this));
+#endif
     if (num_pending_ops.load(std::memory_order_acquire) == 0) {
         return; // every draw comes here
     }
@@ -452,6 +543,9 @@ void Scheduler::AllocateWorkerCommandBuffers() {
 }
 
 void Scheduler::SubmitExecution(SubmitInfo& info) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::Submit,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     std::scoped_lock lk{submit_mutex};
     // bbport: BB_SUBMIT_THREADS=1 names each thread that submits through this scheduler (once).
     static const bool submit_threads = std::getenv("BB_SUBMIT_THREADS") != nullptr;
@@ -552,7 +646,12 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
         }
     }
     ImGui::Core::TextureManager::Submit();
-    auto submit_result = instance.GetGraphicsQueue().submit(submit_info, info.fence);
+    auto submit_result = [&] {
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::DriverSubmit,signal_value,reinterpret_cast<uintptr_t>(this));
+#endif
+        return instance.GetGraphicsQueue().submit(submit_info,info.fence);
+    }();
     if (submit_result == vk::Result::eErrorDeviceLost) {
         std::printf("Device lost during submit\n");
         DeviceLost(instance.GetDevice());

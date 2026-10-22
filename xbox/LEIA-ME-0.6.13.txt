@@ -1,0 +1,22 @@
+UNCHARTED UWP 0.6.13 — ESPERAS DOS WORKERS
+
+A 0.6.12 confirmou que o diagnostico instala, mas observava apenas o ramo
+com sleep. Esta versao tambem observa os workers que executam outras tarefas
+enquanto esperam. O objetivo e identificar a dependencia do contador da
+thread principal. Nao ha correcao confirmada para DEVICE_HUNG nem para o menu.
+
+1. Atualize o APPX e selecione o mesmo Uncharted 3.
+2. Mantenha gpu-sync.txt normal, gpu-execution.txt serial e task-trace.txt on.
+   Os modelos em Opcoes no ZIP nao sao instalados automaticamente pelo APPX.
+3. Se permanecer carregando por dois minutos, feche e guarde loader.log e
+   errors.log antes de reabrir. Se sair antes, guarde os dois mesmo assim.
+
+O log deve mostrar Loading poll profile: installed big3-v2 e os enderecos
+pause/cooperative. As linhas poll_last incluem site: 0x88c54e (sleep) ou
+0x88c522 (cooperativo). Sao ultimas amostras por thread do host, nao por fiber.
+Contagem e idade importam; uma amostra antiga nao prova espera ainda ativa.
+Nenhum contador e alterado pelo diagnostico.
+
+Nao precisa copiar o jogo novamente ou apagar caches. Mantem o limite de
+15 minutos. Menu e gameplay ainda nao confirmados. Nenhum arquivo do jogo
+incluido no pacote.

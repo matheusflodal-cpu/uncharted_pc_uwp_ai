@@ -1,0 +1,22 @@
+UNCHARTED UWP 0.6.7 — INVESTIGACAO DO CARREGAMENTO
+
+Atualize o APPX usando o mesmo dump e o controle ligado.
+Mantenha LocalState/gpu-sync.txt em normal. O padrao agora tambem e normal.
+O modo conservative travou antes das logos no teste anterior.
+
+O teste em normal chegou ao carregamento e continuou com atividade grafica
+ate cerca de cinco minutos. O erro final foi DEVICE_HUNG (0x887a0006),
+perto do limite automatico de 300 segundos; a relacao causal e desconhecida.
+
+Esta versao amplia a janela do boot para 15 minutos e registra a atividade
+de leitura do jogo a cada cinco segundos. Nao e uma correcao confirmada do
+carregamento nem do DEVICE_HUNG. Menu e gameplay continuam sem confirmacao.
+
+Se continuar carregando, aguarde ate o limite de 15 minutos nesta tentativa.
+Se chegar ao menu, teste o controle. Se fechar, guarde loader.log e errors.log
+antes de abrir novamente. Nao precisa copiar o jogo ou apagar caches.
+
+Os contadores IO profile sao intervalos, nao FPS. IO loading mostra leituras
+ativas, erros e tempo desde a ultima conclusao. Ausencia de leituras nao
+prova por si so que o jogo travou; pode estar processando dados em memoria.
+O pacote nao inclui arquivos do jogo.

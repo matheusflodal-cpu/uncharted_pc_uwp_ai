@@ -1,0 +1,22 @@
+UNCHARTED UWP 0.6.4 — ERRO ORIGINAL DO DRIVER
+
+Ainda nao ha imagem do jogo, menu ou gameplay confirmado. Nao inclui o jogo.
+O teste 0.6.3 passou da quarta chamada antes bloqueada, reconheceu o controle
+e parou ao criar outro pipeline grafico com ErrorOutOfHostMemory.
+Esse retorno tambem e usado pelo Dozen para erros de shader ou D3D12.
+
+1. Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+   VCLibs em Dependencies. Mantenha o mesmo dump e o controle ligado.
+2. Escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+3. Se fechar rapidamente, guarde os logs. Se continuar em tela preta, aguarde
+   ate cinco minutos apos a preparacao/verificacao do controle.
+4. Envie loader.log E errors.log antes de reabrir o aplicativo.
+
+O QUE MUDA
+O pacote inclui um Dozen recompilado a partir do mesmo commit, com um canal
+que envia ao errors.log a etapa de falha, o HRESULT original do D3D12 e a
+mensagem do validador DXIL quando disponivel. O log tambem registra memoria,
+shaders e estado do pipeline antes da chamada e depois de uma falha.
+A validacao e o tratamento das falhas continuam ativos; nenhum shader e
+ignorado para fazer o boot prosseguir. Esta versao investiga o erro novo.
+Nao precisa repetir os testes de som/botoes nem copiar o jogo novamente.

@@ -53,6 +53,9 @@ struct ImageSpecialization {
     AmdGpu::NumberConversion num_conversion{};
     // FIXME any pipeline cache changes needed?
     u32 num_bindings = 0;
+#ifdef UNCHARTED_UWP
+    u32 integer_view_levels = 0;
+#endif
 
     bool operator==(const ImageSpecialization&) const = default;
 };
@@ -67,6 +70,9 @@ struct FMaskSpecialization {
 struct SamplerSpecialization {
     u8 force_unnormalized : 1;
     u8 force_degamma : 1;
+#ifdef UNCHARTED_UWP
+    u64 raw0{},raw1{}; // integer point sampling embeds addressing state
+#endif
 
     bool operator==(const SamplerSpecialization&) const = default;
 };
@@ -143,6 +149,10 @@ struct StageSpecialization {
                          }
                          spec.num_conversion = sharp.GetNumberConversion();
                          spec.num_bindings = desc.NumBindings(*info);
+#ifdef UNCHARTED_UWP
+                         spec.integer_view_levels=spec.is_integer?sharp.NumViewLevels(desc.is_array):0;
+                         if(spec.is_integer) spec.dst_select=sharp.DstSelect();
+#endif
                      });
         ForEachSharp(binding, fmasks, info->fmasks,
                      [](auto& spec, const auto& desc, AmdGpu::Image sharp) {
@@ -153,6 +163,9 @@ struct StageSpecialization {
                      [](auto& spec, const auto& desc, AmdGpu::Sampler sharp) {
                          spec.force_unnormalized = sharp.force_unnormalized;
                          spec.force_degamma = sharp.force_degamma;
+#ifdef UNCHARTED_UWP
+                         spec.raw0=sharp.raw0;spec.raw1=sharp.raw1;
+#endif
                      });
 
         // Initialize runtime_info fields that rely on analysis in tessellation passes
@@ -179,6 +192,11 @@ struct StageSpecialization {
         for (const auto& desc : desc_list) {
             auto& spec = spec_list.emplace_back();
             const auto sharp = desc.GetSharp(*info);
+#ifdef UNCHARTED_UWP
+            if constexpr(requires {sharp.GetSize();}) {
+                if(!sharp.GetSize()) {++binding;continue;}
+            }
+#endif
             if (!sharp) {
                 binding++;
                 continue;
@@ -193,6 +211,9 @@ struct StageSpecialization {
     }
 
     bool operator==(const StageSpecialization& other) const {
+#ifdef UNCHARTED_UWP
+        if(bitset!=other.bitset) return false;
+#endif
         if (!Valid()) {
             return false;
         }

@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <boost/container/small_vector.hpp>
 
 #include "shader_recompiler/info.h"
@@ -42,7 +45,7 @@ ComputePipeline::ComputePipeline(const Instance& instance, Scheduler& scheduler,
         bindings.push_back({
             .binding = binding++,
             .descriptorType = vk::DescriptorType::eStorageBuffer,
-            .descriptorCount = 1,
+            .descriptorCount = buffer.buffer_type == Shader::BufferType::DmaBuffers ? Shader::NUM_DMA_BUFFERS : 1u,
             .stageFlags = vk::ShaderStageFlagBits::eCompute,
         });
     }
@@ -106,8 +109,12 @@ ComputePipeline::ComputePipeline(const Instance& instance, Scheduler& scheduler,
         .stage = shader_ci,
         .layout = *pipeline_layout,
     };
-    auto [pipeline_result, pipe] =
-        instance.GetDevice().createComputePipelineUnique(pipeline_cache, compute_pipeline_ci);
+    auto [pipeline_result, pipe] = [&] {
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Scope driver_trace(UnchartedBootTrace::Kind::DriverCompute,0,reinterpret_cast<uintptr_t>(this));
+#endif
+        return instance.GetDevice().createComputePipelineUnique(pipeline_cache, compute_pipeline_ci);
+    }();
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create compute pipeline: {}",
                vk::to_string(pipeline_result));
     pipeline = std::move(pipe);

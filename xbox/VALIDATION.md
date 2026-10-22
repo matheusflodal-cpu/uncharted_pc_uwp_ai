@@ -1,0 +1,1337 @@
+# Validation of the UWP adaptation
+
+Environment: Linux x86-64, system C compiler and Python. No game dump was used.
+
+Command:
+
+```sh
+python xbox/scripts/verify-portable.py
+```
+
+Result: **PASS**.
+
+- Diagnostic native loader compiled with `-Wall -Wextra -Werror`, allowing unused
+  static functions inherited from the upstream runtime with `-Wno-unused-function`.
+- Paged I/O test passed: multi-chunk data integrity, injected short reads,
+  positioned and sequential offsets, EOF, unmapped-buffer fallback and errors.
+- Guest mod-file test passed: read-only game assets and writable user files.
+- **44 Python tests passed, zero failures, zero errors, zero skipped.**
+  Modules: `test_probe`, `test_prepare`, `test_link_libc`, `test_content`,
+  `test_uwp_prepare`, `test_native_prepare`.
+- The Appx manifest parsed as XML, the Actions workflow parsed as YAML,
+  and `git diff --check` passed.
+
+Windows CI validation also **passed**:
+
+- Windows SDK 10.0.26100.0 / clang-cl 19.1.5 compilation.
+- The desktop test harness executed the same UWP FromApp memory backend: sparse commits,
+  live aliases, protections, remaps, concurrent readers and actual file-backed eviction/restoration.
+- 8,242 checksum checks, zero corruption. The release probe reduced private commit from
+  149 MiB to 101 MiB after paging out 48 MiB; all 64 MiB byte patterns were restored.
+- Package import verification against WindowsApp.lib, Store CRT and bundled dependencies.
+- MakeAppx packaging and SHA-256 test-certificate signing.
+- Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39531180717
+- Code commit: `8f5910c5327b08d8d36598273cd0fc6fd7128979`.
+
+Explicitly **not validated**:
+
+- Memory pressure under the Xbox's actual OS-enforced AppContainer budget.
+- Uncharted's real executable initialization, game rendering, audio, input or gameplay.
+- Frame rate, resolution, stability or progress through any of the three games.
+
+The contract ran in a Windows desktop harness with a simulated 5 GiB policy budget,
+not in the packaged UWP app. This validates the adapted memory mechanisms on that host;
+it does not establish Xbox compatibility or game performance.
+
+## Xbox diagnostic reported by the tester
+
+The tester's `loader.log` reports diagnostic exit 0, executable System V code
+returning 42, and 8242 memory/swap checksum checks with zero corruptions.
+The swap test released 48 MiB (reported usage fell from 312 to 264 MiB).
+This validates those small diagnostic workloads on that console; it does not
+establish a sufficient RAM budget or playable performance for Uncharted.
+
+## Graphics bridge milestone (0.2)
+
+An optional `-GraphicsProbe` build enables a standalone Vulkan/Dozen color
+attachment and shared D3D12/CoreWindow presentation test. It does not link the
+Uncharted guest renderer. The tester subsequently supplied the successful Xbox
+log summarized below. This milestone must not be described as playable.
+
+## Xbox graphics bridge reported by the tester
+
+The tester's 0.2 log reports `SraKmd_arden`, Vulkan 1.2, a 1280x720
+shared presentation image, `CoreWindow first frame presented`, and exit 0.
+Dynamic rendering and synchronization2 are available; bufferDeviceAddress and
+sparseBinding are not. This validates presentation of the probe attachment,
+not guest shaders, textures, game rendering, or sustained throughput.
+
+## Renderer integration 0.3 — Windows build validated
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39538299760
+Code commit: `ebf15e89a42b52f7d13d85087316dfcb49335b42`.
+
+- clang-cl 22.1.3 compiled and linked the Uncharted renderer into the UWP host.
+- Native-resolution backends replace unsupported temporal upscalers and frame generation.
+- The SDL runtime is omitted; shared event declarations remain header-only.
+- ImGui's desktop shell/clipboard/IME defaults are disabled.
+- The desktop memory contract passed: 8242 checks, zero corruptions.
+- Import verification passed against WindowsApp.lib, Store CRT and bundled DLLs.
+- MakeAppx and SHA-256 signing of `UnchartedUwpProbe_0.3.0.0_x64.appx` passed.
+- The portable CPU/I/O regression checks and 38 Python tests passed again.
+
+## Xbox renderer probe 0.3 — tester log received
+
+The tester's log reports successful detile tests at 8/16/32/64/128 bits,
+three mips and two layers, with zero incorrect bytes. R8/RGBA8/BC1/BC3
+copies, padded rows, layers and mips also reported zero incorrect bytes.
+RGBA8/BC1 sampling with 128 SSBO slots and descriptor gaps, and storage-image
+writes, reported zero bad components. `Renderer texture/shader self-test: PASS`,
+CoreWindow presentation and diagnostic exit 0 were recorded.
+This validates those synthetic workloads on Xbox, not actual game shaders.
+
+## Native preparation 0.4 — portable checks
+
+The native C++20 preparer was compiled on Linux with `-Wall -Wextra -Werror`.
+Six test methods compare complete BBPROBE5/BBCONT01 files against the original
+Python prepare/link/content tools using invented SELF inputs. Cases cover all
+43 host library spellings, foreign-module fallback, identity version mismatch,
+native exports, main/module TLS, relative/absolute/weak relocations, FS→GS,
+and the libc RET flag. Plaintext ELF output also matches the equivalent SELF.
+Incomplete, encrypted and malformed inputs and wrong titles are rejected.
+Together with existing CPU/I/O coverage, all 44 Python tests passed.
+
+The 0.4 UI, USB discovery and preparation have not yet run on Xbox.
+Real guest initialization, game shaders, audio, input and gameplay remain
+unvalidated. Compilation/signing and portable fixtures do not establish them.
+
+## Native preparation 0.4 — Windows build validated
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39540766217
+Code commit: `9bdbe239e769f30229c820ba1585b7e98adb5a28`.
+
+- The UWP host, popup menus, native preparer and full renderer compiled and linked.
+- All six native/Python parity methods passed on Windows.
+- The same UWP memory backend passed 8242 checks, zero corruption, result 0.
+- UWP import verification, MakeAppx and SHA-256 signing passed for 0.4.0.0.
+- Linux ASan/UBSan also passed the six preparation methods. LeakSanitizer was
+  disabled because this execution environment blocks its process inspection.
+
+These are host/fixture checks; USB discovery, native preparation of a real dump
+and guest boot on Xbox still require the tester's logs.
+
+The final USB-fallback code also passed the same full Windows pipeline:
+https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39541060331
+Code commit: `eb5e4cda7db0ca33a0f57bc6e6b94d22af73a7fc`.
+The signed 0.4.0.0 package delivered for testing is from this run.
+
+## Xbox native preparation 0.4 — tester report
+
+The supplied Uncharted 3 log confirmed USB E:, plaintext dump discovery,
+native preparation PASS (boot=33,391,052 bytes, content=28 bytes), and diagnostic
+exit 20 with 124/552 imports unresolved. The tester also reports exit 20 for
+games 1 and 2; only the game 3 log was supplied. No guest code was executed.
+
+## Graphics registration fix 0.4.1
+
+All 65 graphics NIDs in that report exist in GnmDriver/VideoOut registration
+tables. Previously these tables were populated by `bbgpu_init`, after the
+`--list-missing` return. Address registration is now independent of GPU/window
+initialization on UWP. Desktop RegisterLib retains initialization then registration.
+
+A Windows contract links the real renderer and CPU resolver and checks those
+65 imports without a CoreWindow, presenter or device. Unknown/data imports and
+unimplemented guest audio/input must remain unresolved. Windows build validation is recorded below; the next Xbox diagnostic is pending.
+
+### Windows pipeline passed
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39626279682
+Code: `67456251d507f3bbb87c949c01ed9a3f29fced66`.
+
+- `Graphics import contract: checked=65 missing=0 window=none`.
+- All six native preparation/Python parity methods passed on Windows.
+- Memory backend: 8242 checks, zero corruption, result 0.
+- Active package imports verified as UWP APIs, Store CRT or bundled dependencies.
+- MakeAppx and SHA-256 signing of the 0.4.1.0 APPX passed.
+- Linux portable CPU/I/O coverage and all 44 Python tests passed.
+
+The expected reduction to 59 missing imports is specific to the supplied
+Uncharted 3 executable; it remains to be confirmed on Xbox. This correction
+does not implement audio/input/network APIs or validate graphical guest calls.
+
+## Xbox confirmation of 0.4.1
+
+The next Uncharted 3 log confirmed native preparation PASS and
+`59 of 552 imports missing`, result 20. Graphics address registration appeared
+before GPU initialization; the 65 previously misreported graphics entries disappeared.
+No game execution occurred in this imports test.
+
+## Native pad and POSIX memory 0.5 — portable checks
+
+- 187 pad checks passed, including System V function-pointer calls, exact guest
+  structure layouts, all 14 button mappings, analog ranges/Y inversion, trigger
+  values, count/handle errors, disconnected output, hotplug/generation changes,
+  overlay neutralization and vibration routing. These use a mock host input source.
+- 32,786 anonymous-memory checks passed: guest mmap zero fill, rounding, msync,
+  munmap, reuse and errno for invalid/unsupported mappings. File mappings remain unsupported.
+- The existing paged I/O/file tests and 44 Python tests passed.
+
+The app now links a WinRT pad backend plus a 20-second physical input probe.
+Windows checks are recorded below; Xbox hardware input and game boot remain pending.
+Audio, network, motion/touch sensors and Uncharted-specific SDL pad callbacks remain unavailable.
+
+### Final 0.5 Windows package validated
+
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39631311445
+Code: `e896471a4a48785ce03258ccd3d812bd43fd68fb`.
+
+- Native input C/C++ and UWP host compiled and linked.
+- Pad contract: 187 checks passed with simulated input, including System V calls.
+- POSIX memory contract: 32,786 checks passed against the UWP FromApp backend.
+- Memory/swap contract: 8242 checks, zero corruption, result 0.
+- Graphics contract: 65 imports, zero missing, without a window/GPU initialization.
+- All six native preparation/Python parity methods passed on Windows.
+- Active package imports verified; MakeAppx and SHA-256 signing passed for 0.5.0.0.
+- Linux ASan/UBSan passed the pad contract (LeakSanitizer disabled for the execution
+  environment); UBSan passed the memory contract after guarding empty VMA erasure.
+- FreeBSD stable/9 mman.h confirms guest MS_SYNC=0, MS_ASYNC=1, MS_INVALIDATE=2.
+
+This validates the build and tested contracts, not the WinRT controller on Xbox
+or real Uncharted boot/gameplay. The 20-second physical probe and game boot logs
+are the next console checks. Audio and other listed guest APIs remain pending.
+
+## Xbox v0.5 physical input and attempted boot (2026-10-21)
+
+The tester's dedicated controller log reports PASS: 949 connected samples,
+zero errors, face buttons observed, both stick axes reaching 0..255 and both
+triggers reaching 255. The tester separately confirmed feeling the vibration.
+This validates the dedicated input path, not input during gameplay.
+
+The subsequent Uncharted 3 boot prepared big3-ps4_Shipping.elf successfully
+(boot=33391052, content=28), detected Dozen on SraKmd_arden, and constructed
+the 1920x1080 CoreWindow bridge. It then reported an execute fault at address
+zero during GPU initialization, before the loader's GPU-ready message or
+guest execution. No out-of-memory failure was reported.
+
+## v0.5.1 overlay startup correction
+
+Source inspection found that BbOverlay::Init ignored the return value of
+ImGui_ImplVulkan_LoadFunctions. The bundled backend requires desktop WSI
+entry points even when used with externally managed images. A missing entry
+ends loading early, leaving later function pointers null; release assertions
+are disabled. ImGui_ImplVulkan_Init would then use that incomplete table.
+This is a concrete crash path consistent with the Xbox log; the original log
+does not identify the exact missing function or prove this was the only cause.
+
+The corrected caller checks the actual backend loader, including its dynamic
+rendering lookups and core-to-KHR fallback, before backend initialization.
+Missing functions disable only the overlay with a named diagnostic. Failed
+overlay initialization cannot capture game input. Additional presenter and
+driver milestones distinguish post-processing, overlay, and VideoOut startup.
+Null-call crash reports retain the return-address candidate from the stack,
+and CI archives a matching linker map for host symbol lookup.
+
+The regression harness compiles the actual bundled ImGui Vulkan backend with
+NDEBUG and injected missing entry points. It covers early/late table failures,
+WSI, missing dynamic-rendering functions, valid Vulkan 1.2 KHR fallback, core
+1.3 functions, and failure after a previous complete load. It requires partial
+loads to return without initializing backend state or calling any GPU function.
+Local validation passed: 31 overlay loader checks, 187 pad checks, 32786
+POSIX memory checks, the existing C I/O checks, and 44 Python tests.
+Windows CI passed for code 34ce4407fce52e1579f1a914d29750c354a7d253:
+https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39635271859
+
+- Full renderer and UWP application compiled and linked.
+- Actual ImGui backend loader regression: 31 checks, no GPU calls.
+- Native pad: 187 checks; POSIX memory: 32786 checks.
+- Native preparation: six parity tests; headless graphics import contract passed.
+- Swap: 8242 checks, zero corruption.
+- UWP import allowlist passed; MakeAppx and signing succeeded for 0.5.1.0.
+- Xbox boot confirmation remains pending; no gameplay claim is made.
+
+## Xbox v0.5.1: original Uncharted 3 code executed
+
+Tester logs confirm the unavailable overlay entry was vkDestroySurfaceKHR.
+Disabling the overlay allowed presenter/GnmDriver/VideoOut initialization,
+then linked module initializers and the original guest entry at offset 0x4897a0.
+The game created 124 threads, opened 112 files and read 8,943,786 bytes.
+It stopped explicitly at sceAudioOutInit (JfEPXVxhFqA#G#H), caller 0x684953.
+The bridge presented its first frame; this does not establish game imagery.
+Ten missing path lookups were recorded, but numerous other reads succeeded
+under the same app0 mount. No evidence currently establishes that all ten
+paths are required or that the dump root is wrong. No game data is available
+to inspect those files here; no fallback paths or fabricated assets are added.
+
+## v0.6 audio integration
+
+The UWP app links real AudioOut via XAudio2 and the upstream Uncharted AJM
+ATRAC9/MP3 decoder runtime. Basic CPU and graphics resolver harnesses retain
+their diagnostic audio stubs. Native audio device and submission failures
+propagate explicit errors; only explicit BB_AUDIO=none uses a timer sink.
+Audio conversion scratch storage is per port, outside the guest thread stack;
+port locks persist through close/reopen and protect lookup-to-use transitions.
+
+Local AudioOut contract passed 100 checks for ABI, all eight PCM formats,
+channel ordering, stereo folding, atomic volume validation, buffer cadence,
+close/reopen and submission errors. A separate device-init failure check
+passed without silently marking the guest API initialized. Existing portable
+checks (187 pad, 32786 POSIX memory and 44 Python tests) passed.
+The Windows AJM contract uses a generated MP3 tone for actual decoding and
+a known stereo 48 kHz configuration for ATRAC9 initialization. It also checks
+batch parsing, malformed chunks and context ownership. Windows build/decoder
+checks and actual Xbox sound/boot remain pending until recorded below.
+
+The local AJM harness additionally passed 4648 checks using the system FFmpeg
+6.1.1 libraries: real MP3 PCM output, ATRAC9 initialization, batches and errors.
+ASan/UBSan initially exposed BitReverse32 shifting by 32 for a zero-width
+operation in the pinned LibAtrac9 utility. The UWP build substitutes a small
+MIT-licensed utility adaptation with defined zero-width reversal and unsigned
+bit arithmetic for sign extension; the original submodule pin is preserved.
+MP3 input is copied into an FFmpeg-owned zero-padded packet rather than
+assuming padding after guest memory. After those fixes the AJM sanitizer
+run passed with UBSAN_OPTIONS=halt_on_error=1 and no reported errors.
+The AudioOut sanitizer run passed its 100 checks as well. Leak detection
+was disabled for the local ASan runs under this execution environment.
+
+## v0.6 Windows CI passed
+
+Code: ec7a50af6121f5f61e3ede7dd3ab40ac97d9df3f
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39640377783
+
+- Full renderer and app compiled and linked with native XAudio2 and AJM.
+- AudioOut: 100 checks and explicit device-failure case passed.
+- AJM: 4648 checks passed with the pinned FFmpeg 7.1.1 build; real MP3 PCM
+  output and ATRAC9 initialization confirmed in the Windows harness.
+- Pad: 187 checks; overlay loader: 31 checks; graphics resolver: 65 imports.
+- Native preparation parity: six tests; swap: 8242 checks, zero corruption;
+  POSIX memory: 32786 checks.
+- UWP import allowlist, MakeAppx and APPX 0.6.0.0 signing passed.
+
+Physical audio output, actual game audio decoding and this revision's guest
+boot remain unverified until the tester provides new Xbox logs.
+
+## Xbox v0.6: audible probe and black-screen boot
+
+The tester confirmed hearing the dedicated tone. loader (5).log reports
+XAudio2 at 48 kHz stereo, 375 buffers, one port and diagnostic exit 0.
+The subsequent loader (6).log opened three AudioOut ports (main eight-channel
+float folded to stereo, voice mono and pad mono), initialized AJM, continued
+startup, invoked MsgDialog and reached guest shader/pipeline compilation.
+The two errors logs supplied were byte-identical. Both ended at
+`STOP: diagnostic phase watchdog`, with no named unsupported import or
+access fault. No shader/pipeline completion timings were available, so the
+90-second termination does not establish a driver hang or slow compilation.
+No game image, menu or gameplay was confirmed.
+
+## v0.6.1 timed boot diagnostics
+
+Boot now has a fixed 300-second limit after preparation; imports retain 90 s.
+RAII scopes record begins/returns, elapsed duration and C++ exception exits
+for shader translation/SPIR-V, graphics/compute pipeline creation, actual
+driver compilation calls, recording synchronization, copy waits, submissions,
+timeline queries/waits, draw-pipe drains and the CoreWindow bridge.
+Begin/return lines are limited to the first eight of each kind, plus operations
+lasting at least one second or ending by exception. Heartbeats every five
+seconds print aggregate counters, bounded pending scopes, cached timeline
+values and CPU/app-memory samples. Counts indicate calls/returns, not rendered
+images; cached timeline values are not fresh driver queries. Concurrent
+snapshots are best-effort and never acquire renderer or driver locks.
+
+MsgDialog diagnostics inspect only the recognized 136-byte PS4 parameter
+layout with a 48-byte base (checked against shadPS4 system/msgdialog_ui.h).
+ReadProcessMemory protects every guest read; strings are bounded to 1024
+bytes and control characters are normalized. Unknown layouts/unreadable
+pointers are reported without following them. Guest dialog completion and
+result semantics remain unchanged; this adds observation, not dialog UI.
+
+Local contracts passed: 17 trace checks covering cross-translation-unit
+state, eight workers, scope cleanup, exceptions, bounded-slot saturation and
+snapshots; 21 dialog checks covering modes, layouts, bad pointers and bounded
+strings. Existing portable checks and 44 Python tests passed. Windows build
+and new Xbox trace remain pending until recorded below.
+
+## v0.6.1 Windows CI passed
+
+Code: ee73515a4ac3adf188174686b08641e51fd5b891
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39645368261
+
+The full renderer and app compiled and linked. The new boot trace (17 checks)
+and protected dialog parsing (21 checks) passed on Windows, alongside pad
+(187), overlay loader (31), AudioOut (100 plus device failure), AJM (4648),
+native preparation parity (six tests), graphics import resolution, swap
+(8242 checks, zero corruption) and POSIX memory (32786 checks).
+The UWP import allowlist passed and APPX 0.6.1.0 was signed successfully.
+The separate CPU diagnostic and graphics build workflows also succeeded.
+
+The downloaded renderer artifact SHA-256 matches the GitHub Actions digest:
+2c086f086eeb569f9662942438a958552bdf65b61575602bf8fba3b23c634810.
+These are host build/contract results. The five-minute boot and diagnostic
+output still require a new Xbox attempt; they do not establish a fix for
+the black screen, an actual game image, menu or gameplay.
+
+## Xbox v0.6.1: stable command counts and a controller alert
+
+Attachments: loader.log (3).txt and errors.log (1).txt. The boot reached the
+300-second diagnostic watchdog. At 5.114 s, draws=9, dispatches=4 and
+flip_requests=0; these remained unchanged through 300.102 s. Every measured
+scope had returned, with no pending measured operation. Memory settled at
+2411/5120 MiB (first guest heartbeat 2513 MiB), so the samples do not suggest
+budget exhaustion. Process CPU increased about 25 s per 5 s wall time; this
+is aggregate CPU time, not a per-thread attribution or proof of a spin loop.
+Six pipelines were preloaded, which explains why shader compilation scopes
+need not appear in this attempt. The final GPU message was creation of the
+Thin2DThin_64 detiler. That path called createComputePipelineUnique directly
+and was not covered by the previous driver compilation scopes. A blocked
+call there remains a hypothesis, not an established cause.
+
+MsgDialog logged: Wireless controller not detected. Please check connection
+and battery levels for the wireless controller. No pad service call history
+was present. The physically validated standalone input probe does not prove
+that the game's own opening/read sequence succeeded. No menu, game image
+or gameplay was confirmed.
+
+## v0.6.2: cover remaining recording/wait blind spots
+
+Adds UWP-only scopes around the tiling pipeline path and its actual driver
+creation call, plus DrawRecord/DispatchRecord. PM4 telemetry records submitted,
+resumed/completed coroutine tasks, packets and last opcode/address per virtual
+queue. Wait records cover graphics/compute memory or register comparisons,
+video labels, memory semaphores and rewind-valid waits. The comparison,
+scheduling, fence signalling and draw behavior are unchanged. Observations
+are bounded atomic samples; no monitor-side guest reads, queue locks or GPU
+queries. Command-thread wait sampling is rate-limited and may be stale while
+a task is suspended. Snapshots are best-effort, not coherent transactions.
+
+Native pad diagnostics retain real host results, report initial opening/info
+calls and bounded read errors, and publish counters via trylock: the watchdog
+skips a busy service rather than waiting for it. No forced connection,
+repeated test requirement or timeout increase was introduced. The new build
+and Xbox behavior require validation recorded below.
+
+Local v0.6.2 contracts passed: 29 boot-trace checks (including independent
+queue states, disabled/out-of-range safety, bounded reader calls and a real
+coroutine suspended with a live wait), 193 pad checks (including non-blocking
+snapshot of a busy service and host error counters), and the existing audio,
+dialog, POSIX memory and 44 Python tests.
+
+## v0.6.2 Windows CI passed
+
+Code: fa9e3bc93d898178ba965cae8b43e4df0fefe06e
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39674690818
+
+The full renderer/app compiled and linked. Passed on Windows: boot trace
+29 checks, pad 193, overlay 31, protected dialogs 21, AudioOut 100 plus
+device failure, AJM 4648 with actual MP3 decoding and ATRAC9 initialization,
+native preparation parity six tests, graphics import resolution, swap
+8242 checks with zero corruption, and POSIX memory 32786 checks. UWP import
+validation and signing of APPX 0.6.2.0 succeeded. Separate CPU and graphics
+build workflows also succeeded.
+
+These results validate the build and host contracts. The added recording,
+tiling, PM4 and controller traces need the next Xbox boot attempt; no fix
+for the black screen or playable game has been established.
+
+## Xbox 0.6.2 and the 0.6.3 memory correction
+
+loader.log (4).txt and errors.log (2).txt: the detiler driver call returned
+in 42 ms, all 8 measured tiling calls and 9 DrawRecord calls returned. The
+fourth DispatchRecord started at 4417 ms and remained pending through
+300105 ms (295688 ms pending). Queue 0 remained at 92 submitted tasks,
+41 resumes, 40 completions and 752 packets, last opcode 0x15. No measured
+PM4 wait was pending. That locates a block within DispatchRecord, not its
+exact operation. Input opened successfully for user 1; its only host sample
+reported absent, then no guest reads followed. Memory settled at 2420/5120 MiB.
+
+Code inspection found a concrete reentrancy hazard in uwp_backing_write:
+memcpy could read a guest source while holding uwp_commit_lock; a lazy/stale
+source page fault calls a handler which takes that same exclusive SRW lock.
+0.6.3 stages each source chunk into bounded host storage before locking the
+destination. Small fences use 256 stack bytes; larger copies allocate one
+16 KiB host buffer, avoiding a large guest-stack array. The destination
+protection restore/alias/swap paths remain in the existing backend. This
+corrects a real deadlock risk; the Xbox trace has not yet proven it was hit.
+New Windows regression cases use untouched guest source pages across a
+boundary, stale host PAGE_NOACCESS with logical RW permissions and a read-only
+destination. Existing memory/swap checks still run. Added scopes measure
+HLE shader dispatch, image-to-buffer synchronization, backing writes, resource
+binding and pending scheduler operations.
+
+Before guest boot, the real Gamepad API is polled for up to five seconds
+(50 ms interval); absence or API failure stops with an explanatory message.
+This does not fabricate a pad or modify guest pad ABI. A host call stuck
+during this step is bounded by the separate 15-second phase watchdog.
+Windows build, regression and Xbox validation are recorded below when done.
+
+## v0.6.3 Windows CI passed
+
+Code: 062a5820bc09258f57583eee5c05343e6d354f78
+Run: https://github.com/matheusflodal-cpu/uncharted_pc_uwp_ai/actions/runs/39680411552
+
+Full renderer/app compiled and linked; APPX 0.6.3.0 signed. The real FromApp
+memory harness passed the new guest-source lazy/stale-protection copy
+regression, including byte patterns and read-only destination restoration.
+Swap: 8242 checks, zero corruption; POSIX memory: 32786 checks. Also passed:
+pad 193, boot trace 29, protected dialogs 21, overlay 31, AudioOut 100 plus
+device failure, AJM 4648 with actual MP3 decoding/ATRAC9 initialization, six
+native preparation parity tests, graphics resolution and UWP import allowlist.
+The separate CPU and graphics workflows also passed. The shared input header
+was additionally syntax-checked with the Windows RPC small macro defined.
+
+This validates the memory correction and package on Windows. Real controller
+readiness and the effect on the blocked Xbox DispatchRecord remain unverified
+until a new console boot. No game image, menu or gameplay is established.
+
+## Xbox 0.6.3: prior block passed; new graphics-pipeline failure
+
+loader (8).log: real input ready in 94 ms, guest pad info connected=1 and
+one successful read. The fourth DispatchRecord (HLE 0x6a6422a9) returned in
+36 ms; its 9 MiB backing write returned in 34 ms. Later work continued. At
+5.024 s the snapshot showed 11 draws, 9 dispatch calls and zero flip requests.
+Memory was 2553/5120 MiB. The final pipeline creation started at 5.963 s.
+errors (4).log and errors (5).log are byte-identical: pipeline key
+0xf43a301791304559, FS 0x81a0a982 / VS 0xf585649d, then
+ErrorOutOfHostMemory and a library assertion. No game image was confirmed.
+
+The pinned Dozen dzn_pipeline.c maps nir_to_dxil failure, DXIL validation
+failure and failed D3D12 CreatePipelineState to that same Vulkan result.
+There is no native HRESULT or validation detail in the attached logs. The
+last memory sample is not an allocation peak and cannot distinguish causes.
+
+## v0.6.4 driver error channel
+
+A strict, hash-checked build-time patch to the same Mesa pin adds an MIT
+callback sink in dzn_pipeline.c. It reports NIR-to-DXIL failures, DXIL validator
+text, pipeline host-allocation failure, native HRESULT and device-removed
+reason for failed graphics CreatePipelineState, plus final graphics VkResult.
+All original validation, return values and cleanup remain intact. It does
+not enable experimental mode, change shaders/features or retry failed work.
+The host registers the callback before Vulkan initialization; this bypasses
+the separate static-CRT stderr of Mesa. Shader compiler worker threads may
+call it concurrently. Text is bounded and forwarded directly to errors.log.
+
+The driver cache key includes both patch and sink hashes. A missing callback
+entry point is an explicit startup error in the full renderer package. The
+basic graphics probe still accepts its older uninstrumented driver.
+The app records up to 32 pre-call pipeline states and every failure state,
+including shader hashes, formats, blend/input/raster state and app memory
+usage/limit. Memory values are samples around the call, not exact peaks; a
+failed WinRT query is reported as unavailable. No Vulkan queries are made
+from the diagnostic callback.
+
+Local tests cover exact source-pin/context checks, rejection of changed or
+already patched source, and native-code formatting, long-message bounds,
+disabled callback and concurrent sink calls. Windows driver rebuild and
+Xbox results are pending until recorded below.
+
+
+## v0.6.4 Windows build and package
+
+Code dc095368146f01854645c01678b438e9fefea7fc; Actions run
+39683566279. The pinned Mesa source was rebuilt with MSVC 14.44 after
+passing the strict patch contract. The resulting driver exports
+`dznSetUwpDiagnosticCallback`; its DLL SHA256 is
+45d284f8a08df1d5063ec95e755a2b63cf9c43d9f813561c90db2051dae79437.
+
+The full Windows renderer compiled and linked. The native diagnostic sink
+passed 26 checks, pad 193, overlay 31, boot trace 29, dialog 21, AudioOut
+100 plus device failure, and AJM 4648 with actual MP3 decode/ATRAC9 init.
+Native preparation passed against the original Python tools. Memory tests
+passed guest-source page-fault regression, 8242 swap checks with zero
+corruption, and 32786 POSIX checks. Active UWP imports passed the allowlist;
+the APPX 0.6.4.0 was signed. Separate CPU and basic graphics builds passed.
+These checks validate Windows builds/contracts, not an Xbox game boot.
+
+The new driver error channel and the result of the next game boot still
+require Xbox testing. No menu, game image or gameplay is confirmed.
+
+
+## Xbox 0.6.4 and bounded integer sample lowering in 0.6.5
+
+errors (6).log identifies DXIL validation rejection of sample.i32 in the
+fragment shader stage, same FS 0x81a0a982 / pipeline 0xf43a301791304559.
+Memory immediately before/after failure: 3065798656 / 3066449920 bytes,
+limit 5368709120 bytes. This failure is shader validation, not demonstrated
+RAM exhaustion. loader (9).log confirms the driver diagnostic callback.
+
+0.6.5 adds UWP-only integer sampling lowering for one-level point-filtered
+1D/2D/3D and 1D/2D-array views, excluding cube, anisotropy, custom borders
+and non-point filtering. Implicit/explicit/gradient samples share the same
+fetch since the sole view level is zero. Depth compare/gather and other
+cases retain the original shader/validation. Unknown cases log actual
+shader/image/sampler/view parameters and remain explicit failures.
+
+Coordinates preserve normalized addressing (the existing IR pass normalizes
+GCN unnormalized samples), floor before offsets, repeat and mirrored repeat,
+mirror-once, edge and predefined borders. Array layers round and clamp.
+Texel data stays signed/unsigned integer until the existing bitcast to IR
+float registers. No sample is replaced with a constant or omitted.
+
+The sampler raw words and integer view level count enter specialization;
+shader binary/meta and pipeline key versions are incremented. This prevents
+reusing a compiled one-level/wrap configuration after changing descriptors.
+
+Local numerical cases exercise the production coordinate template. Sirit
+contracts generate 80 signed/unsigned modules across dimensions/arrays/wrap
+modes and assert integer fetch replaces sampling. The Windows ICD contract
+first requires the old shader to reproduce a DXIL rejection, then requires
+all 80 lowered fragment/graphics pipelines to compile through the exact packaged Dozen. This
+checks compiler acceptance, not GPU execution or rendered pixels. Windows
+and Xbox results remain pending until recorded below.
+
+
+The initial Windows compile at 5ae1a00 succeeded, including 6683 local
+emitter checks, but its compute-stage negative control did not reproduce
+the fragment-stage rejection. The driver contract now uses a real vertex /
+fragment graphics pipeline, implicit integer sampling and FragCoord input;
+the negative control must reject before all lowered graphics variants run.
+Tests also include signed constant offsets and predefined border swizzles,
+including constant-zero/one channels. Border swizzle enters specialization.
+
+
+Desktop WARP compiled the original integer sample at ps_6_8 and accepted all
+80 lowered graphics variants; it did not reproduce the console rejection.
+The host contract now explicitly preloads the packaged DXIL/DXC and uses a
+new diagnostic-only setter to compile at SM 6.0. Both NIR and DXIL compiler
+model caps are changed together by this test switch. Its default is zero;
+the app never calls it and normal adapter model selection is preserved.
+This tests an older compiler target, not a claimed match for every Xbox
+capability. Validation remains enabled. The isolated compiler check runs
+before the full renderer build, so shader test failures return sooner.
+
+
+## v0.6.5 Windows validation
+
+Code 965f526f5146e3122881b1ff02237c58829cd1dd; Actions run
+39689740418, renderer job 119534171463.
+
+The isolated graphics compiler contract preloaded packaged DXIL/DXC,
+registered the diagnostic sink and selected the host-only SM 6.0 target.
+The original implicit integer fragment sample was rejected by DXIL;
+all 80 lowered signed/unsigned graphics pipelines compiled. Variants cover
+1D/2D/3D, 1D/2D arrays, eight addressing modes, predefined borders and
+signed constant offsets. No lowered pipeline produced a validator failure.
+This reproduces the rejection class with a legacy target; it is not a
+claim that the software adapter matches all Xbox capabilities.
+
+Full renderer compile/link passed. The final emitter contract passed 6705
+checks and the diagnostic sink 29. Native preparation passed six tests;
+pad 193, overlay 31, boot trace 29, dialog 21, AudioOut 100 plus device
+failure, AJM 4648 with actual MP3 decode and ATRAC9 init all passed.
+Memory passed the guest-source page-fault regression, 8242 swap checks with
+zero corruption and 32786 POSIX checks. UWP imports passed the allowlist;
+APPX 0.6.5.0 was signed. Separate CPU and basic graphics builds passed.
+
+Dozen was rebuilt from the same pinned source with the strict diagnostic
+patch. DLL SHA256:
+d48984f8315fd2343ecc6e7268bed0be9d49e81f0dab4d97cb7e214568ce7b3b.
+Both diagnostic exports are present. The shader-model setter defaults off;
+the app never calls it and uses the actual adapter model. Validation remains
+active on normal and diagnostic paths.
+
+This checks compiler acceptance and scalar addressing, not rendered pixels
+or an Xbox game boot. The real FS texture/sampler parameters remain unknown
+until the next console test; eligibility is explicitly logged. No game
+image, menu or gameplay is established.
+
+
+## Xbox 0.6.5: first game logos confirmed
+
+Tester explicitly reports the logos, without reaching the menu. errors (7).log
+shows the integer sample lowering for FS 0x81a0a982 and subsequent pipelines.
+loader (10).log at 35.391 s: 7670 draw requests, 4502 dispatch requests, 741
+flip requests, 743 bridge_present calls returned. Counts do not establish
+distinct visible frames. Last memory sample 4244/5120 MiB is not a peak.
+errors ends with Vulkan -4 at presentation wait, then null write in
+vulkan_dzn.dll+0x4bca. Disassembly of the exact 0.6.5 DLL shows rep stos after
+an unchecked resource Map. Function argument flow and allocation sequence
+match dzn_CmdFillBuffer. This supports a secondary CPU map failure; it does
+not identify why the graphics device was lost initially.
+
+## v0.6.6 conservative synchronization and device diagnostics
+
+Scheduler rendering-boundary barriers are adapted from Cosmo/gow3_xbox
+5203195e3fad1703fcea26aa28a1290b17a70075. They execute outside dynamic
+rendering and inside the same recorder order, with ALL_COMMANDS and
+MEMORY_READ|MEMORY_WRITE in both directions. The default app mode enables
+them; LocalState/gpu-sync.txt normal/conservative provides an A/B switch.
+This investigates synchronization rather than claiming a proven loss fix.
+
+The strict Mesa patch now checks both pinned pipeline and command files.
+CmdFillBuffer and CmdUpdateBuffer check Map status and pointer before any
+pointer arithmetic, write, Unmap or CopyBufferRegion. Failure queries the
+native removed reason, logs both codes and sets the Vulkan command-buffer
+recording error to UNKNOWN (or OUT_OF_HOST_MEMORY for a known E_OUTOFMEMORY
+with no device removal). Native lost-device details remain in the log. It never returns success
+for a failed recording. Successful paths retain their original operations.
+
+A desktop-only Map injection setter defaults to zero and is never called
+by the app. The native compiler contract injects failed maps into both real
+commands, requires EndCommandBuffer to preserve UNKNOWN, then
+also checks successful recordings. A standalone C contract covers null
+success pointers, failure with nonnull pointer, removed-device classification
+and injection reset. No GPU transfer execution is claimed by these tests.
+
+The driver exports native GetDeviceRemovedReason reporting. The bridge logs
+its own D3D12 device reason and requests the driver's reason on lost waits.
+A native fence UINT64_MAX is treated as device removed. These confirmed
+loss paths flush logs and exit, avoiding concurrent unwind after an unusable
+device. Generic scheduler loss also requests the driver report. This is
+failure handling, not device recovery or evidence that the menu is reached.
+
+Windows validation and Xbox 0.6.6 behavior remain pending below.
+
+
+## v0.6.6 Windows validation
+
+Code 961091ec81c07655c1eeea492c6efcdda5183c41;
+Actions run 39693331177 (renderer 119546077884).
+
+The actual Dozen command contract passed two injected Map failures and two
+successful command recordings (Fill and Update). EndCommandBuffer retained
+UNKNOWN on injected E_FAIL; no null write occurred. Explicit device status
+export was resolved/called. Legacy SM 6.0 reproduced the original shader
+rejection; all 80 lowered graphics variants compiled.
+
+Full renderer compile/link passed. Map guard passed 17 checks, diagnostic
+sink 29, integer emitter 6705, native preparation six tests, pad 193,
+overlay 31, boot trace 29, dialog 21, AudioOut 100 plus device failure,
+AJM 4648 with actual MP3 decode and ATRAC9 init. Guest page-fault regression,
+8242 swap checks with zero corruption, 32786 POSIX checks, and UWP import
+allowlist passed. APPX 0.6.6.0 signed. Separate CPU/graphics builds passed.
+
+The driver is built from the same Mesa pin; strict patch tests cover both
+pipeline and command sources. DLL SHA256: 9309911ae5dae7aebbd132bf466ac597f8538c6c7524617153d0fd61c3948191.
+The normal app leaves legacy-model and Map fault injection switched off.
+
+This validates compiler/contracts and failure handling on Windows. The
+conservative barriers' effect on Xbox device loss is unverified until a new
+console test. Logos were confirmed on 0.6.5; menu/gameplay remain pending.
+
+## v0.6.6 Xbox comparison and v0.6.7 loading investigation
+
+Latest attachments loader (14).log / errors (9).log confirm normal mode.
+At 300057 ms: 59783 draws, 18202 dispatches, 5563 flip requests; bridge
+present 5571 returned; last memory 3368/5120 MiB. Guest controller reads
+continued without reported errors. Native DEVICE_HUNG 0x887a0006 was captured.
+No watchdog STOP line was present. Timing alone cannot establish whether
+the configured 300-second limit affected device failure. User confirmed
+logos followed by loading; menu/gameplay remain unconfirmed.
+
+0.6.7 changes only the boot window (900 seconds), default sync mode (normal),
+loading I/O observability and watchdog log flushing. It retains the real
+device-loss failure path and does not bypass commands, errors or loading.
+Windows package validation and Xbox results pending.
+
+### v0.6.7 completed build validation
+
+Source 4fe72ff9e95ea36c4a7e46719372485eaa63efac passed renderer run
+39712704424 (job 119607602540). CPU run 39712704506 and graphics run
+39712704392 also passed. The real Dozen map-recording and 80-variant
+integer fragment driver contracts passed, along with native preparation,
+pad, overlay, boot tracing, dialog, AudioOut, AJM, paging, POSIX memory and
+UWP import checks. APPX 0.6.7.0 was signed successfully.
+
+Final Linux portable checks passed (44 Python tests and native contracts).
+The updated real paged-I/O regression additionally checks active-operation
+balance, a failing positioned read, interval reset, and preservation of
+active/last-completion state when reporting. Xbox 0.6.7 is untested.
+
+## v0.6.7 Xbox loading result and v0.6.8 task tracing
+
+loader.log (5).txt / errors.log (3).txt confirm 0.6.7 normal mode.
+At 900072 ms the explicit watchdog terminated with exit code 124.
+239914 draws, 67322 dispatches, 21937 flip requests; bridge presents
+continued returning. Last memory 3348/5120 MiB. No DEVICE_HUNG recorded.
+899 instrumented reads totaled 81571887 bytes. At termination the last
+completed read was 872597 ms old (about 27.5 seconds into boot), with
+zero active reads and zero reported read errors in the final interval.
+This supports a persistent loading loop/wait, not a confirmed specific
+deadlock or proof that every possible I/O path has completed.
+
+0.6.8 adds bounded atomic host-task snapshots at existing five-second
+intervals, including API wait type, target, return call site, age and
+start/return counts. The API stores host-owned data only and preserves
+errno/results. No monitor registry lock, guest-memory dereference, forced
+thread suspension or wait bypass. No changes to scheduling or timeouts.
+Guest fibers are not individually tracked; untraced work is not progress
+evidence. Windows validation and Xbox results pending.
+
+### v0.6.8 Windows validation completed
+
+Tested source 9ed16df6b2c1db7e35f88ee6610f393a690a56f3 passed renderer
+run 39717357296, job 119622666687. CPU run 39717357305 and graphics
+run 39717357308 passed. The earlier source 0798004 failed to find the
+new header in the actual UWP renderer CMake module; it was corrected
+before a package was delivered.
+
+The Windows guest wait trace contract passed real mutex and condition
+blocking, wakeup, result/errno preservation, snapshots, thread exit and
+capacity exhaustion. Existing driver map-recording, integer graphics
+pipelines (80 variants), 6705 integer emitter checks, preparation parity,
+pad, overlay, boot/dialog trace, AudioOut, AJM, paging (8242 checks, zero
+corruption), POSIX memory and UWP import contracts passed. APPX 0.6.8.0
+was signed. The final Linux trace contract also passed, alongside the
+portable suite (44 Python tests plus native checks).
+
+Xbox 0.6.8 remains untested. This is loading diagnosis, not a confirmed
+fix for reaching the menu or gameplay.
+
+## v0.6.8 Xbox result and v0.6.9 investigation
+
+loader.log (6).txt / errors.log (4).txt: normal sync; counters stopped
+near 40 seconds and DEVICE_HUNG 0x887a0006 was captured. Last snapshot
+45663 ms: 7843 draws, 4540 dispatches, 747 flips, 4217/5120 MiB.
+138 task slots registered, none dropped. FlipHandler/GfxEop waited on
+events while bridge acquire and scheduler submit remained pending.
+Compute handler waits alone are not proof of incorrect synchronization.
+No missing-import termination was recorded.
+
+Queue audit: graphics and presentation use the same queue; caller paths
+already hold Scheduler::submit_mutex for acquire and presentation. No
+new nested locking is introduced. The serial option disables existing
+parallel draw recording, Vulkan recording and copy worker paths, without
+skipping work. Detailed task tracing defaults off. Native DRED settings
+are requested dynamically before device creation, with graceful absence.
+The actual Dozen device is queried on failure; output traversal is bounded.
+Next-operation inspection is omitted for overwritten history, unsampled
+counters and completed/out-of-range lists. No exact fault claim is made.
+
+References: Microsoft Learn use-dred and D3D12_AUTO_BREADCRUMB_NODE.
+Support in Xbox Dev Mode is unverified. The defaults combine serial work,
+less tracing and optional DRED; one successful run cannot isolate cause.
+Windows build and Xbox test pending.
+
+### v0.6.9 Windows validation completed
+
+Tested source 651ed7231199da6b528491c84ae5b574f74e0366 passed renderer
+run 39720375729 (Dozen job 119632214153; renderer job 119633010038).
+CPU run 39720375723 and graphics run 39720375724 also passed.
+Actual driver DRED QueryInterface returned S_OK; healthy desktop WARP
+breadcrumb/page-fault queries returned DXGI_ERROR_UNSUPPORTED 0x887a0004
+and were handled without failure. The host test does not enable DRED
+settings, remove the device or execute GPU game work. Successful lost-device
+DRED output traversal and Xbox support remain untested.
+
+Real driver map injection (two failures, two successes), 80 integer shader
+pipelines, 6705 emitter checks, preparation parity, pad, overlay, task/wait
+tracing, boot/dialog tracing, AudioOut, AJM, paging (8242 checks, zero
+corruption), POSIX memory and UWP import checks passed. APPX 0.6.9.0 signed.
+Linux portable checks passed, including 44 Python tests and native contracts.
+
+Packaged Dozen SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+No game dump is available here; no menu/gameplay test was performed.
+
+Primary API documentation:
+https://learn.microsoft.com/windows/win32/direct3d12/use-dred
+https://learn.microsoft.com/windows/win32/api/d3d12/ns-d3d12-d3d12_auto_breadcrumb_node
+
+## v0.6.9 serial Xbox results and v0.6.10 sleep-origin diagnosis
+
+Serial graphics, normal synchronization, task tracing off: final 202411 ms,
+124356 draws, 35838 dispatches, 11442 flip requests; no recorded device loss.
+User reported smoother loading animation and faster entry, but no menu.
+Task tracing on: final 155508 ms, 94426 draws, 27675 dispatches and 8721
+flip requests. 136 task slots, none dropped. Main repeatedly requests 1 ms
+sleeps; its call count increases throughout. Job-worker calls continue
+returning. FIOS callback/IO condition waits settle around 20 seconds with no
+active reads. Neither idle IO nor unused compute event waits establishes a
+bug. Bridge presentation continues returning. No DEVICE_HUNG was recorded.
+These counters measure runtime calls, not unique frames or gameplay FPS.
+
+The main sleep call_site in 0.6.9 is inside the native kernel wrapper:
+sleep_ns captured its own return address. Version 0.6.10 explicitly captures
+return address zero at each exported sleep ABI entry (noinline when tracing
+is compiled) and forwards it through helpers. sceKernelNanosleep no longer
+captures the intermediate POSIX entry. No guest stack unwind, code/data
+reads, forced wakeup, sleep duration change or shader skipping is added.
+Other APIs with intermediate helpers may still expose native helper sites.
+This narrows the next investigation; it does not identify the polling
+predicate, prove why loading is incomplete or fix the menu transition.
+
+The new contract calls all five actual exported sleep entries through an
+assembly SysV caller without unwind metadata or a frame pointer. It checks
+the exact return label, nanosecond conversion, successful return, guest and
+host errno, remainder clearing, disabled tracing, invalid pointer/time
+handling and snapshot output. Linux optimized contract passed, and the same contract rejects the old
+source at the exact-caller assertion. All 44 Python tests and portable
+native contracts passed. Clang is unavailable locally; Windows clang-cl
+build remains pending. Xbox 0.6.10 is untested.
+
+### v0.6.10 Windows validation completed
+
+Tested source 467448645a24f97e34a199ee037b42c6ae4a1b95 passed renderer
+run 39725618903 (Dozen job 119648701550; renderer job 119648794582).
+CPU run 39725618907 and graphics run 39725618923 also passed.
+The new exact-caller sleep contract passed under Windows clang-cl at all
+five actual ABI entries. Wait snapshots, boot/dialog tracing, native
+preparation parity, pad, overlay, AudioOut, actual MP3/ATRAC9 AJM, paging
+(8242 checks, zero corruption), POSIX memory and import checks passed.
+Integer emitter (6705 checks), 80 real driver shader variants, map-failure
+injection and native diagnostic sink contracts passed. APPX 0.6.10.0 signed.
+
+The cached driver artifact matches the 0.6.9 archive SHA256 exactly:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256 remains:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+The Linux contract also rejects a mutation that captures inside the sleep
+helper, even with nonzero native call sites. No game dump is available here;
+Xbox 0.6.10, menu and gameplay remain untested.
+
+## v0.6.11 per-thread loading predicate profile
+
+The user supplied plaintext SELF containers for big3, big2 and eboot, plus a
+PLT disc-map file. No decryption was needed and no game binary is committed
+or packaged. See LOADING-ANALYSIS-0.6.10.md for hashes and static findings.
+Absolute sleep caller 0x88c54a is image offset 0x48c54a at base 0x400000.
+The main loop reads object+0x20, compares against a target (equality or signed
+less/equal), and repeats 1 ms pauses. Multiple callers share this routine;
+no particular object, main caller or root cause is established yet.
+
+With task tracing on, an opt-in-by-tracing profile validates three exact code
+signatures and an executable segment before installing a single callback
+at image offset 0x48c54e. Failure skips instrumentation. AVX/OSXSAVE/XCR0
+are checked. Six position-independent MOV bytes are relocated unchanged;
+all comparisons, branches and pauses retain their original instructions.
+The MS-ABI callback receives object, already-read current value, target,
+mode and the return slot from this verified frame. No object dereference,
+stack walk, forced wakeup, state mutation, code skip or additional guest-file IO occurs.
+The thunk saves GPRs/flags and all 16 full YMM registers. Samples use the
+existing bounded per-host-thread slots and stable atomic snapshot sequence.
+A stale last sample does not prove a current wait; count and age are printed.
+
+The Linux native contract executes the production-emitted thunk, checks all
+five MS-ABI arguments and original wait return, relocated MOV effects,
+volatile/callee-saved GPRs, carry flag and every full YMM after a deliberately
+clobbering host callback, disabled tracing, signature mutations, buffer/range
+rejection, invalid object address without dereference and per-thread sample
+isolation. The signatures also match the actual uploaded big3 code. Targeted
+Linux contract passed. The full portable suite also passed (44 Python tests
+and native contracts); Windows validation remains pending.
+No Xbox/menu/gameplay validation for 0.6.11 has been performed.
+
+### v0.6.11 Windows validation and signed package
+
+Tested source bcf9db8d8da198daf81d104a698845c3fadd55fc completed all renderer
+build, verification, signing and upload steps successfully in run 39813560640
+(Dozen job 119945993864; renderer job 119946226506). CPU run 39813560943 and
+graphics run 39813560591 also passed. The new loading-poll contract executed
+the production thunk successfully under Windows clang-cl, including the
+five MS-ABI arguments, original guest return slot, GPR/flags/all-YMM
+preservation, invalid object address without reads and thread isolation.
+
+Existing sleep/wait, preparation parity, pad, overlay, boot/dialog, AudioOut,
+actual MP3/ATRAC9 AJM, paging (8242 checks, zero corruption), POSIX memory,
+integer emitter (6705 checks), 80 real-driver shader variants, map injection,
+diagnostic sink and UWP import checks passed. APPX 0.6.11.0 was signed.
+Dozen is unchanged; cached archive digest matches 0.6.9/0.6.10 exactly:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+The contract uses an artificial guest frame and values; the real Xbox wait
+object, target and caller remain unknown until the user test. No full game
+boot, menu or gameplay test was performed here.
+
+## v0.6.11 Xbox result and v0.6.12 UWP code-memory fix
+
+loader.log (10).txt / errors.log (8).txt: normal, serial, task tracing on.
+The profile matched the code but was NOT installed: no near executable memory.
+No poll_last samples were produced. At 30224 ms, 7994 draws, 4635 dispatches,
+756 flip requests and 4137/5120 MiB were recorded. Presentation acquire and
+scheduler submit were pending about 4.6/4.5 seconds. Native HRESULT 0x887a0006
+confirmed DEVICE_HUNG. DRED interface query succeeded, but breadcrumb and
+page-fault queries returned 0x887a0004 (unsupported). No GPU-fault instruction
+or cause can be inferred. The inactive poll callback cannot explain this run
+as a callback execution failure; timing/other GPU causes remain unresolved.
+
+Root of the diagnostic installation failure: VirtualAlloc is mapped to
+VirtualAllocFromApp in the UWP adapter; near_image_memory requested RWX.
+Microsoft documents executable allocations as invalid for FromApp. The
+existing packaged native smoke instead allocates RW, then changes to RX.
+The old contract tested desktop VirtualAlloc(RWX), so it missed this defect.
+The manifest already declares codeGeneration. Version 0.6.12 uses a shared
+RW allocator / RX sealer for this profile, flushes the generated code before
+publishing the original-site branch, and frees allocation on prepare/seal
+failure. Error output now identifies allocation versus emit/RX-seal failure
+and includes the Win32 error. Legacy optional generic hooks are unchanged.
+
+Updated native contract: exact same allocation/sealing helpers as the host;
+Windows calls actual FromApp APIs, checks old RWX allocation is rejected,
+queries separate thunk/site protections, then executes production emitted
+code after RW->RX. Linux exercises mmap/mprotect RW->RX. An injected seal
+failure returns failure before any original-site publication. Existing MS ABI,
+register/flag/YMM, signature, sample and invalid-object contracts remain.
+Targeted Linux contract and the full portable suite passed (44 Python tests
+and native contracts). Windows FromApp API contract and build pending.
+Xbox profile installation and menu/gameplay remain untested for 0.6.12.
+
+References:
+https://learn.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualallocfromapp
+https://learn.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualprotectfromapp
+https://learn.microsoft.com/windows/apps/package-and-deploy/app-capability-declarations
+
+### v0.6.12 Windows validation and signed package
+
+Source 25396d64293419a9417067d915e5241d8e1a317e passed renderer run
+39818389012 (Dozen job 119962796316; renderer job 119962945866), including
+all verification, signing and upload steps. CPU run 39818388966 and graphics
+run 39818388977 also passed. The loading-poll contract passed on Windows
+using the actual VirtualAllocFromApp / VirtualProtectFromApp helpers: old
+RWX allocation rejected, RW then RX protections verified, injected seal
+failure rejected before site publication, production thunk executed with
+MS-ABI arguments, GPR/flags/all-YMM preservation and per-thread samples.
+
+Existing sleep/wait, native preparation parity, pad, overlay, boot/dialog,
+AudioOut, MP3/ATRAC9 AJM, paging and POSIX memory, integer emitter (6705
+checks), 80 real-driver shader variants, map injection, diagnostic sink and
+UWP import checks passed. APPX 0.6.12.0 was signed. The Dozen archive and
+packaged DLL remain byte-identical to 0.6.11; this build changes no graphics
+settings. Renderer artifact 12443408325 SHA256:
+ce17a1192c87f68458100956b05233ca9c72a296092ba16f79f4ab74c636faa0
+Build evidence artifact 12442764408 SHA256:
+4da977d21c41178b775db003efdd4e8bc5cf50d7e804796eb885cd324949e316
+
+These contracts run with synthetic guest data on Windows, not the full game
+in an Xbox AppContainer. Xbox installation of the diagnostic remains to be
+verified by an installed/RW-to-RX sealed line and poll_last samples. The
+DEVICE_HUNG cause, menu and gameplay remain unresolved.
+
+
+## v0.6.12 Xbox result and v0.6.13 cooperative wait coverage
+
+Inputs read-only: loader.log (11).txt and errors.log (9).txt. Source package
+0.6.12, game 3, normal synchronization, serial execution, task tracing on.
+The loading profile installed and reported RW-to-RX sealed. Main's samples
+at 10143/15235/20327/25341/30438 ms observed object 0x1200105680, current 1,
+target 0, equality mode and absolute return 0x88c5d7. Final sample count 12245,
+age 0 ms. This is the return of a generic counter wait inside wrapper at
+image offset 0x48c5b0, not an identified direct loading-state wait.
+
+Static evidence: wrapper 0x48c5b0 calls wait at 0x48c5d2, then recycles a
+128-byte entry through a pool under the job-manager global at 0x14f8700.
+Creation code at 0x48c1b0 obtains an entry, initializes metadata and sets
+object+0x20 to the number of jobs at 0x48c2c2. Job completion paths (including
+0x49eefe) atomically subtract one and notify at 0x49e1e0. This identifies the
+counter mechanism, not the exact unfinished job or a missing callback.
+
+Final graphics counters: 7864 draws, 4561 dispatches, 755 flip requests,
+unchanged since 25341 ms. At 30438 ms bridge acquire pending 6158 ms and
+scheduler submit pending 6002 ms. Native HRESULT 0x887a0006 DEVICE_HUNG is
+recorded; DRED queries unsupported (0x887a0004). Final memory 4147/5120 MiB,
+no swap, I/O active/errors 0/0. Counts do not measure unique frames/FPS.
+The relationship between the pending task and GPU failure is unresolved.
+
+Coverage gap: workers wait cooperatively at 0x48c510, invoking 0x4a0050 and
+checking the counter through a separate path at 0x48c522. The previous profile
+only observed 0x48c54e after a sleep, missing cooperative nested waits.
+Version 0.6.13 validates the worker-loop bytes as well, then prepares and
+seals both thunks before publishing either branch. A sixth MS-ABI argument
+records the exact instrumented site. It still reads only guest registers
+and the signature-proven wait return slot; no object reads or frame walks.
+It preserves the original scheduling, predicates and completion writes.
+
+Targeted Linux contract passed: real emitted thunks at both sites, sixth
+argument, GPR/flags/all-YMM preservation, per-thread isolation, rejection of
+worker signature mutations, and injected second-seal failure before any site
+publication. The full portable suite also passed (44 Python tests and native contracts).
+Windows validation pending. No Xbox/menu or GPU-hang fix is claimed for 0.6.13.
+
+### v0.6.13 Windows validation and signed package
+
+Source a96e425f7bcec4f8eff8bb03c3afee7fa0a47df4 passed full renderer run
+39823333613 (Dozen job 119980013406; renderer job 119980160625), including
+verification, signing and uploads. CPU run 39823332680 and graphics run
+39823332936 passed. The loading-poll contract executed both emitted thunks
+under Windows with the six MS-ABI arguments and original guest return slot,
+GPR/flags/all-YMM preservation, invalid object address without dereference,
+per-thread samples, and failure of the second RX seal before either original
+site was modified. Actual FromApp RW/RX protection checks passed.
+
+Existing sleep/wait, native preparation parity, pad, overlay, boot/dialog,
+AudioOut, MP3/ATRAC9 AJM, paging/POSIX memory, integer emitter (6705 checks),
+80 real-driver shader variants, failed-map injection, diagnostic sink and
+UWP import checks passed. APPX 0.6.13.0 was signed. Renderer artifact
+12446401349 SHA256:
+a8bae07f2b5c74565a066e4e1043b9d4d4f2b2ef4b2af59e6571d489f3e84c01
+Build evidence artifact 12444794748 SHA256:
+57457bc5ba9fa4672e4091b331375d91c03d80e69f73cf2d2ad75f3e48ae99df
+Dozen archive digest remains ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed;
+the packaged DLL remains eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c.
+
+The tests use synthetic guest frames, not the full game on Xbox. Trace
+callbacks add work and may affect timing; each host thread retains only its
+last observed wait, not a complete per-fiber dependency graph. Actual worker
+wait samples, the pending job identity and relation to DEVICE_HUNG remain to
+be checked. No menu/gameplay confirmation or GPU-hang fix is claimed.
+
+
+## v0.6.13 Xbox result and v0.6.14 image subresource correction
+
+Inputs read-only: loader.log (12).txt and errors.log (10).txt. Package 0.6.13,
+game 3, normal/serial/task-trace on. Both big3-v2 sites installed. At 5066 ms,
+worker samples observed loading-state object 0x1200105000 satisfying target
+10 (caller 0x55f03f) and target 9 (caller 0x55f74f), signed <= mode. These
+samples establish satisfied predicates at those moments, not global boot
+completion. At 10096..30466 ms main observed object 0x1200105580, current 1,
+target 0, equality, caller 0x88c5d7. Workers' final cooperative observations
+were current=target=0 and about 4640..4718 ms old. They are per-host-thread
+last samples, not a full per-fiber stack or proof no other wait exists.
+Counter entries can be recycled: an earlier zero at the same address does
+not identify the same task generation. Main's persistent one coexisted with
+ongoing graphics, so it is not established as the cause of the hang.
+
+Final snapshot 30466 ms: 8057 draws, 4706 dispatches, 757 flip requests;
+25384 ms had 7877/4638/755, so some graphics progressed after that snapshot.
+Bridge acquire pending 4713 ms, scheduler submit 4640 ms. Native status
+0x887a0006 DEVICE_HUNG again; DRED unsupported. Memory 4159/5120 MiB, swap
+unused, I/O active/errors 0/0. There is no named missing-import STOP. This
+does not establish a RAM exhaustion or a CPU job-system fix.
+
+Static graphics review found reproducible invalid region construction:
+- CopyMip uses destination baseArrayLayer=slice but SanitizeCopyLayers takes
+  min(total source layers,total destination layers), ignoring that base.
+  A two-layer source and three-layer destination at slice 2 would request
+  layers 2..3, crossing the destination bound (valid layers 0..2).
+- ResolveImage uses all image layers despite selected view layer counts,
+  always mip 0 and full source dimensions. Four-layer images with a one-layer
+  view at source base 3 would request 3+4>4, and selected mip 2 was ignored.
+
+Version 0.6.14 shares overflow-safe metadata helpers with the contract.
+CopyMip bounds non-3D array copies by the available destination tail; 3D paths
+are unchanged. ResolveImage uses the selected mip, base and common layer
+count for both its copy and multisample resolve paths, with dimensions bounded
+by both selected mips. Empty/invalid attachment ranges fail before recording.
+It does not skip draws or force a successful device status. The existing
+layer-coercion warnings can also come from valid whole-image expansion;
+they DO NOT prove these malformed regions occurred in this Xbox run.
+
+The targeted Linux metadata contract passed 46656 tagged-slice cases,
+including last-layer copies, unequal array sizes, selected nonzero mips,
+untouched neighbours, zero/invalid ranges and uint32 overflow boundaries.
+It executes the exact helpers used by Runtime, not Vulkan GPU commands.
+Full portable suite passed (44 Python tests and native contracts). Windows
+build/contracts pending. No claim of actual Xbox
+DEVICE_HUNG resolution, menu or gameplay is made.
+
+Reference for array-layer bounds and mip extents:
+https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdCopyImage.html
+https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdResolveImage.html
+
+### v0.6.14 Windows validation and signed package
+
+Source 3533a3f911f4f4f59dddf5bdb2893644788b1f9a passed renderer run
+39860165813 (Dozen job 120108515069; renderer job 120108629973), including
+all verification, signing and upload steps. CPU run 39860165683 and graphics
+run 39860165625 also passed. The new image-copy range contract passed all
+46656 cases on Windows, using the same helper compiled into vk_runtime.cpp.
+The full renderer, including both copy and resolve command construction,
+compiled and linked. The contract checks metadata and tagged slice updates;
+it does not execute those Vulkan commands or a full game on Xbox.
+
+Existing native preparation parity, pad, overlay, sleep/wait/poll, boot/dialog,
+AudioOut and actual MP3/ATRAC9 AJM, paging/POSIX memory, integer emitter
+(6705 checks), 80 real-driver shader variants, failed-map injection, diagnostic
+sink and UWP imports passed. APPX 0.6.14.0 was signed. Renderer artifact
+12461134017 SHA256:
+e6992dc3c0a058805893f6494001157d969c938ad4bd906e6343cf3c840a19f3
+Build evidence artifact 12461303613 SHA256:
+be3e3b406c38539a141b1d1c1ec7d381e12cdf17cdc5ca5dc8531022ead8d3da
+Dozen cache archive remains byte-identical:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+Normal/serial/task-trace on settings are unchanged for the next console test.
+No shader cache reset is required by this metadata-only command-region change.
+An actual Xbox DEVICE_HUNG fix, menu and gameplay remain unconfirmed.
+
+
+## v0.6.14 Xbox result and v0.6.15 requested 720p experiment
+
+Inputs read-only: loader.log (13).txt and errors.log (11).txt. Package 0.6.14,
+normal/serial/task-trace on, game 3. Native preparation and both poll sites
+passed. Last snapshot at 25452 ms: draws 7948, dispatches 4654, flip requests
+756; memory 4217/5120 MiB, swap unused. Bridge acquire pending 1009 ms,
+draw/resource-bind pending 914 ms, PM4 opcode 0x35. This is not proof the
+pending CPU resource-bind caused the GPU failure. Native DEVICE_HUNG
+0x887a0006 returned again; DRED remained unsupported. No Bounding CopyMip or
+invalid-range error appeared; the log does not prove the new bounds path was
+exercised. Exact exit time cannot be inferred from the final heartbeat.
+VideoOut and the CoreWindow bridge recorded 1920x1080.
+
+User requested 720p after discussing GPU timeouts. Version 0.6.15 adds a
+strict startup render-resolution.txt setting (default 720p, explicit 1080p
+fallback) shared between host parsing and the spatial-only UWP wrapper.
+TemporalUpscaler remains disabled; its RasterScaling reports the configured
+SceneTargets proxy size. The UWP rasterizer may select existing proxy
+attachments before the deferred-scene/camera heuristic fires, including boot
+passes. The original eligibility guards remain: no MSAA/array/feedback or
+mismatched attachment sizes, and unsupported formats stay native. Original
+1920x1080 targets, VideoOut/output size and compute dispatch sizes remain.
+No guest executable or shader byte patch is added; no TDR/system setting is
+changed. Existing proxy/native coherence and viewport/FragCoord conversion
+are reused. 720p full-size proxies have 4/9 of native pixel count; compatible
+half-size post targets use 640x360.
+
+The heartbeat adds scaled_draws, counted when reduced attachments and viewport
+are selected. It is not completed GPU work or FPS. Zero provides no evidence
+of reduced work; even a nonzero count does not quantify total GPU savings.
+Keeping native images plus proxies and resampling can add memory/work, so
+this experiment does not guarantee lower RAM, speed or DEVICE_HUNG avoidance.
+The local resolution contract passed configuration defaults/fallback/errors,
+shared preset dimensions, scene-size packing and viewport factor. The full
+portable suite passed (44 Python tests and native contracts). Actual Xbox proxy draws,
+visual correctness, menu and gameplay remain untested for 0.6.15.
+
+
+## Review of supplied DEVICE_HUNG hypotheses (0.6.15 source)
+
+The supplied analyses are hypotheses, not established causes. Pipeline creation
+is CPU-side and does not identify the last command executed by the GPU. Pending
+PM4/resource-bind timestamps do not identify a faulting GPU instruction either.
+Unsupported DRED with VA zero means fault details are unavailable, not that a
+page fault was excluded or established.
+
+TileImage already calls DownloadImage and FlushBarriers before tiler dispatch.
+DownloadImage tracks image transfer reads and buffer transfer writes; the
+accumulated memory barrier targets all commands with memory read/write access.
+Conservative barriers off therefore does not mean synchronization is absent.
+This does not prove the existing synchronization is sufficient on Dozen.
+
+The copy paths call Transit without a restricted subresource range. Image's
+GetBarriers transitions all mips/layers, including individually tracked states,
+and its full-image barrier already uses VK_REMAINING_ARRAY_LAYERS. Layer-count
+coercion alone does not establish missing transitions in the remaining layers.
+
+Dense arena expansion appends to std::deque<Buffer> arenas, copies old content,
+and updates the logical views. Old arenas are retained, not destroyed/unmapped
+by GetDenseArena. A WaitIdle added to prevent such a destruction would address
+an unobserved event. Other residency/coherence hazards remain possible. The
+384 MiB pressure headroom is not a cap on unpinned private bytes; 4217/5120 MiB
+alone does not establish exhaustion of that free-budget margin.
+
+A future isolated depth-writeback experiment should capture dispatch dimensions,
+formats, mips/layers, guest/staging/descriptor ranges and establish prior queue
+completion before fencing copy and compute separately. Skipping depth writeback
+can alter data and timing; disappearance of the hang would narrow the search,
+not prove a final fix. No bypass, blanket WaitIdle or extra barrier change is
+mixed into the requested 720p experiment. Existing gpu-sync.txt=conservative
+remains a separate comparison option.
+
+
+## v0.6.15 Windows build and package validation
+
+Source 40dd970a5b98b208fe8d2f6a391873ff46c0a672 passed renderer run
+39863339829 (Dozen 120119271190; renderer 120119386412). CPU run
+39863339764 and graphics run 39863339730 also passed. The full renderer
+compiled and linked; the new resolution contract passed on Windows, including
+720p default, 1080p fallback, invalid input, scene packing and viewport factor.
+The 46656-case copy range contract passed. Both contracts are CPU checks,
+not GPU execution or visual validation.
+
+Existing preparation parity, pad, overlay, wait/sleep/poll, boot/dialog,
+AudioOut and actual MP3/ATRAC9 AJM, paging/POSIX memory, integer emitter
+(6705 checks), 80 real-driver lowered shader pipelines, failed-map injection,
+diagnostic sink and UWP imports passed. The intentionally invalid original
+integer shader was rejected as expected by that negative contract. APPX
+0.6.15.0 was signed; signing/upload steps succeeded.
+
+Renderer artifact 12463855925 SHA256:
+54c229645a0d6c9f6f6311f57f1668cd8fd051dded24bd4dc08bfe2ee68fea15
+Evidence artifact 12463302186 SHA256:
+3a396336c513405920d67cf751a93ec6018b897be22c1fe14145a08c0517fa98
+The Dozen archive remains byte-identical:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+The default console comparison is 720p/normal/serial/task-trace on with the
+same game files; preserve both logs after up to two minutes. Use
+render-resolution.txt=1080p to revert within the same package. Actual reduced
+Xbox draws, output correctness, DEVICE_HUNG avoidance, menu and gameplay
+remain unconfirmed. No depth-writeback bypass was added.
+
+
+## v0.6.15 Xbox result and v0.6.16 depth-writeback isolation
+
+Read-only inputs: loader (16).log and errors (11).log. 0.6.15, game 3,
+normal/serial/task-trace on, 720p requested. scaled_draws reached 1899:
+eligible reduced raster states were selected, not proof of completed frames.
+At 25396 ms: draws 7767, dispatches 4552, flip requests 754, memory 4011 MiB.
+At 30396 ms the same counters remained; memory 3977/5120 MiB, no swap use,
+I/O active=0 errors=0. All draw_record/resource_bind scopes returned. GPU wait
+1507 and bridge acquire remained pending for 5277/5276 ms; known draw timeline
+1506, next 1510. PM4 opcode 0x10, not the earlier run's 0x35. DEVICE_HUNG
+0x887a0006 recurred after the last depth32 tiler creation log; DRED unsupported.
+No specific GPU instruction is identified. Lower selected raster work did not
+avoid the failure in this run, and reduced RAM alone does not explain cause.
+
+0.6.16 adds default stages mode (depth-writeback.txt=off reverts). First 32
+Depth2DThin64_32 writebacks checkpoint prior queued work, image-to-buffer copy
+and compute tiler separately. Direct fence submissions retain the scheduler's
+logical tick and do not run ordinary submission callbacks or retirement. A
+normal Finish inside resource preparation could retire allocations still
+needed by that draw; this diagnostic intentionally avoids it. Command buffers
+are renewed only after the fence completes; dynamic state is invalidated as
+usual. Queue submit is externally synchronized with the existing submit mutex;
+the wait does not hold that mutex. Serial host configuration is required.
+The staging allocation is held/deferred across checkpoints and freed after the
+compute fence; no guest writeback is skipped. Existing resource barriers remain.
+
+Metadata includes guest/output/staging ranges, dimensions, samples, format,
+mip layout, subresource regions, dispatch count and parameter offset. Known
+32-bit depth copy footprints use checked 64-bit arithmetic; invalid descriptor
+or copy bounds stop before recording the offending copy. Other formats are
+logged without asserting a 32-bit-plane interpretation. This does not validate
+all shader-generated tiled addresses or establish that any prior access was
+valid. The footprint/config contract passed 4608 independent texel-address
+oracle cases plus real-resolution/overflow/invalid-input checks locally; no GPU
+execution. The full portable suite passed (44 Python tests and native contracts);
+Windows results are recorded below.
+
+Interpretation: failure in prior leaves the current writeback untested; copy
+failure after prior success narrows to that batch (including transitions and
+auxiliary sample/proxy copies); tiler failure after copy success narrows to the
+compute batch and its barriers, not necessarily a particular instruction.
+If all stages complete, investigate subsequent work. Timing, command-buffer
+boundaries and dedicated staging differ; disappearance of the hang is not a
+confirmed fix. The diagnostic is bounded to 32 writebacks and can be disabled
+in the same package. 720p/output/normal synchronization settings are otherwise
+retained. No menu/gameplay or Xbox fix is claimed.
+
+Fence completion semantics checked against the Vulkan synchronization chapter:
+https://docs.vulkan.org/spec/latest/chapters/synchronization.html
+
+
+## v0.6.16 Windows validation and signed package
+
+Source 0234836f041d4ea8d814fd270413fdc9de8eea31 passed renderer run
+39866363921 (Dozen 120129437257; renderer 120129570743). CPU run
+39866363923 and graphics run 39866363908 passed. The full renderer, including
+CheckpointDepthWriteback and its TileImage call sites, compiled and linked.
+The 4608-case depth-plane footprint/config contract passed on Windows;
+copy-range 46656 cases and the 720p/1080p resolution contract passed. These
+CPU checks do not execute the new fenced batches on a GPU.
+
+Existing native preparation parity, pad, overlay, wait/sleep/poll, boot/dialog,
+AudioOut and actual MP3/ATRAC9 AJM, memory/paging/POSIX, integer emitter
+(6705 checks), 80 lowered real-driver shader pipelines, map-failure injection,
+diagnostic sink and active UWP imports passed. APPX 0.6.16.0 signing and
+artifact upload succeeded. No Xbox checkpoint success or fix is claimed.
+
+Renderer artifact 12463694745 SHA256:
+09c8663d9ef58d0298ee2f423a31c1a4ee2d0ae9699d76d759277713e1c9184c
+Evidence artifact 12464218281 SHA256:
+2eb9a55d644ad8bb3c5051f9f96b7411e85baf828f6c1543ec8d877fab3676d3
+Dozen cache archive remains byte-identical:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+The console test uses stages/serial/normal and the retained 720p default.
+Preserve loader.log and errors.log after up to two minutes or an earlier exit.
+Use depth-writeback.txt=off to compare without checkpoints in the same APPX.
+The signed APPX bytes are preserved when wrapping the delivery ZIP with docs
+and optional setting templates. Game data is not included. Menu/gameplay and
+a DEVICE_HUNG fix remain unconfirmed.

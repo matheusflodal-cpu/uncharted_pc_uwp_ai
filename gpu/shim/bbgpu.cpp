@@ -1,3 +1,6 @@
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include "bbport_write_log.h"
 // bbport: glue between the C loader and the vendored shadPS4 video core.
 #include "bbport_overlay.h"
@@ -52,10 +55,18 @@ void runtime_memory_set_gpu_hooks(RuntimeGpuRange map, RuntimeGpuRange unmap, Ru
 
 Frontend::WindowSDL* g_window = nullptr;
 
-namespace Libraries::GnmDriver { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
+namespace Libraries::GnmDriver {
+void InitializeDriver();
+void RegisterSymbols(Core::Loader::SymbolsResolver* sym);
+void RegisterLib(Core::Loader::SymbolsResolver* sym);
+}
 namespace Libraries::AvPlayer { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
 namespace Libraries::Videodec2 { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
-namespace Libraries::VideoOut { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
+namespace Libraries::VideoOut {
+void InitializeDriver();
+void RegisterSymbols(Core::Loader::SymbolsResolver* sym);
+void RegisterLib(Core::Loader::SymbolsResolver* sym);
+}
 namespace Libraries::Kernel { void RegisterEventQueue(Core::Loader::SymbolsResolver* sym); }
 
 namespace {
@@ -133,6 +144,9 @@ void MemoryManager::CopySparseMemory(VAddr source, u8* dest, u64 size) {
     });
 }
 bool MemoryManager::TryWriteBacking(void* address, const void* data, u64 size) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::BackingWrite,size,reinterpret_cast<uintptr_t>(address));
+#endif
     BbWriteLog::Note(reinterpret_cast<uintptr_t>(address), data, size, BbWriteLog::Backing);
     return runtime_memory_write_backing(reinterpret_cast<uintptr_t>(address), data, size) != 0;
 }
@@ -183,6 +197,10 @@ bool g_window_ready;
 } // namespace
 
 u32 BbDisplayRefreshHz() {
+#ifdef UNCHARTED_UWP
+    // Nominal PS4 vblank cadence; CoreWindow presentation owns display sync.
+    return 60;
+#else
     static const u32 hz = [] {
         const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
         const u32 rate = mode && mode->refresh_rate > 0 ? u32(mode->refresh_rate + 0.5f) : 60;
@@ -190,6 +208,7 @@ u32 BbDisplayRefreshHz() {
         return std::max<u32>(rate, 60);
     }();
     return hz;
+#endif
 }
 
 #ifdef BB_PGO_GENERATE
@@ -244,7 +263,11 @@ extern "C" int bbgpu_init(const BbGpuConfig* config) {
         }
         g_window_cv.notify_all();
         while (window->PollEvents()) {
+#ifdef UNCHARTED_UWP
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+#else
             SDL_Delay(2);
+#endif
         }
         std::printf("Window closed (close button, Alt+F4 or system quit request)\n");
         std::fflush(stdout);
@@ -257,8 +280,16 @@ extern "C" int bbgpu_init(const BbGpuConfig* config) {
     }
     Core::Loader::SymbolsResolver resolver;
     // GnmDriver creates the presenter that the VideoOut present thread uses.
+#ifdef UNCHARTED_UWP
+    // The loader already registered these addresses before --list-missing.
+    Libraries::GnmDriver::InitializeDriver();
+    std::puts("UWP GPU startup: GnmDriver ready; initializing VideoOut");
+    Libraries::VideoOut::InitializeDriver();
+    std::puts("UWP GPU startup: VideoOut ready");
+#else
     Libraries::GnmDriver::RegisterLib(&resolver);
     Libraries::VideoOut::RegisterLib(&resolver);
+#endif
     return 0;
 }
 
@@ -267,6 +298,11 @@ extern "C" void bbnet_register(void); // bbnet/bbnet_glue.cpp: network and PSN (
 extern "C" void bbgpu_register_kernel(void) {
     Libraries::Kernel::StartKernelService();
     Core::Loader::SymbolsResolver resolver;
+#ifdef UNCHARTED_UWP
+    Libraries::GnmDriver::RegisterSymbols(&resolver);
+    Libraries::VideoOut::RegisterSymbols(&resolver);
+    std::printf("UWP: graphics import addresses registered before GPU initialization\n");
+#endif
     Libraries::Kernel::RegisterEventQueue(&resolver);
     Libraries::AvPlayer::RegisterLib(&resolver);
     Libraries::Videodec2::RegisterLib(&resolver);

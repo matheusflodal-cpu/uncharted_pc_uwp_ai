@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#include "present_bridge.h"
+#endif
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
@@ -14,7 +18,7 @@
 
 namespace Vulkan {
 
-constexpr u64 WAIT_TIMEOUT = std::numeric_limits<u64>::max();
+constexpr u64 InfiniteSemaphoreWait = std::numeric_limits<u64>::max();
 // bbport: called once by a GPU wait that has blocked for 5 seconds (the scheduler prints what
 // the queue is waiting for).
 void (*g_gpu_stall_report)() = nullptr;
@@ -34,6 +38,9 @@ namespace Vulkan {
 // Also called where a submission or present reports the loss (vk_semaphore.h).
 [[noreturn]] void DeviceLost(vk::Device device) {
     std::printf("GPU crash: the graphics device was lost\n");
+#ifdef UNCHARTED_UWP
+    UnchartedUwp::ReportDeviceStatus(device);
+#endif
     if (g_device_fault_ext && VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT) {
         const auto get = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT;
         VkDeviceFaultCountsEXT counts{.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT};
@@ -106,6 +113,9 @@ Semaphore::Semaphore(const Instance& instance_) : instance{instance_} {
 Semaphore::~Semaphore() = default;
 
 void Semaphore::Refresh() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::TimelineQuery,CurrentTick(),reinterpret_cast<uintptr_t>(this));
+#endif
     u64 this_tick{};
     u64 counter{};
     do {
@@ -119,6 +129,9 @@ void Semaphore::Refresh() {
         }
     } while (!gpu_tick.compare_exchange_weak(this_tick, counter, std::memory_order_release,
                                              std::memory_order_relaxed));
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::ObserveTimeline(reinterpret_cast<uintptr_t>(this),CurrentTick(),KnownGpuTick());
+#endif
 }
 
 void Semaphore::Wait(u64 tick) {
@@ -126,6 +139,9 @@ void Semaphore::Wait(u64 tick) {
     if (IsFree(tick)) {
         return;
     }
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope wait_trace(UnchartedBootTrace::Kind::GpuWait,tick,reinterpret_cast<uintptr_t>(this));
+#endif
     // Update the GPU tick and try again
     Refresh();
     if (IsFree(tick)) {
@@ -143,7 +159,7 @@ void Semaphore::Wait(u64 tick) {
     bool reported = false;
     vk::Result result;
     while ((result = instance.GetDevice().waitSemaphores(
-                &wait_info, reported ? WAIT_TIMEOUT : StallReport)) != vk::Result::eSuccess) {
+                &wait_info, reported ? InfiniteSemaphoreWait : StallReport)) != vk::Result::eSuccess) {
         if (result == vk::Result::eErrorDeviceLost) {
             DeviceLost(instance.GetDevice());
         }

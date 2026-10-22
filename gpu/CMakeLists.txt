@@ -2,6 +2,10 @@
 # drivers, adapted to the native_probe runtime through shims in shim/.
 cmake_minimum_required(VERSION 3.24)
 project(bbgpu LANGUAGES C CXX)
+if(UNCHARTED_UWP)
+    include(../xbox/graphics/renderer.cmake)
+    return()
+endif()
 # Newer libc++ (clang 21+) no longer includes these transitively; the shadPS4, sirit and FFX
 # sources rely on them (std::abort, _countof, swprintf_s, log2, placement new, ...).
 if(WIN32)

@@ -7,6 +7,8 @@
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
+#include "video_core/renderer_vulkan/copy_subresources.h"
+#include <stdexcept>
 #include "video_core/renderer_vulkan/vk_gpu_profiler.h"
 #include "video_core/renderer_vulkan/vk_scene_resolution.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -461,8 +463,19 @@ void Runtime::CopyMip(VideoCore::Image* src, VideoCore::Image* dst, u32 mip, u32
     ASSERT(mip_block_h == (src->info.size.height >> src_dim));
     ASSERT(mip_block_p == (src->info.pitch >> src_dim));
 
-    const auto [src_layers, dst_layers] =
+    auto [src_layers, dst_layers] =
         SanitizeCopyLayers(src->info, dst->info, src->info.size.depth);
+    if (ConvertImageType(src->info.type) != vk::ImageType::e3D &&
+        ConvertImageType(dst->info.type) != vk::ImageType::e3D) {
+        const auto count=CopySubresources::LayerCount(src->info.resources.layers,
+            dst->info.resources.layers,0,slice,src_layers,dst_layers);
+        if (!count) throw std::runtime_error("CopyMip: empty or invalid array layer range");
+        if (count!=src_layers || count!=dst_layers)
+            LOG_WARNING(Render_Vulkan,
+                "Bounding CopyMip array range: src_layers={} dst_layers={} dst_base={} count={}",
+                src_layers,dst_layers,slice,count);
+        src_layers=dst_layers=count;
+    }
 
     const vk::ImageCopy image_copy{
         .srcSubresource{
@@ -584,6 +597,15 @@ void Runtime::CopyDepthStencil(VideoCore::Image* src, VideoCore::Image* dst,
 void Runtime::ResolveImage(VideoCore::Image* src, VideoCore::Image* dst,
                            const VideoCore::SubresourceRange& src_range,
                            const VideoCore::SubresourceRange& dst_range) {
+    const auto region_plan=CopySubresources::Attachment(
+        {src->info.size.width,src->info.size.height,src->info.resources.levels,src->info.resources.layers},
+        {dst->info.size.width,dst->info.size.height,dst->info.resources.levels,dst->info.resources.layers},
+        {src_range.base.level,src_range.base.layer,src_range.extent.layers},
+        {dst_range.base.level,dst_range.base.layer,dst_range.extent.layers});
+    if (!region_plan || !src_range.extent.levels || !dst_range.extent.levels ||
+        ConvertImageType(src->info.type) != vk::ImageType::e2D ||
+        ConvertImageType(dst->info.type) != vk::ImageType::e2D)
+        throw std::runtime_error("ResolveImage: invalid 2D attachment subresource range");
     SetBackingSamples(dst, 1, false);
     scheduler.EndRendering();
 
@@ -599,24 +621,23 @@ void Runtime::ResolveImage(VideoCore::Image* src, VideoCore::Image* dst,
         FlushBarriers();
     }
 
-    const auto [src_layers, dst_layers] = SanitizeCopyLayers(src->info, dst->info, 1);
     if (!needs_resolve) {
         const vk::ImageCopy region = {
             .srcSubresource{
                 .aspectMask = vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
-                .baseArrayLayer = src_range.base.layer,
-                .layerCount = src_layers,
+                .mipLevel = region_plan->src.level,
+                .baseArrayLayer = region_plan->src.layer,
+                .layerCount = region_plan->src.layers,
             },
             .srcOffset = {0, 0, 0},
             .dstSubresource{
                 .aspectMask = vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
-                .baseArrayLayer = dst_range.base.layer,
-                .layerCount = dst_layers,
+                .mipLevel = region_plan->dst.level,
+                .baseArrayLayer = region_plan->dst.layer,
+                .layerCount = region_plan->dst.layers,
             },
             .dstOffset = {0, 0, 0},
-            .extent = {src->info.size.width, src->info.size.height, 1},
+            .extent = {region_plan->width, region_plan->height, 1},
         };
         scheduler.Record([src_image = src->GetImage(), dst_image = dst->GetImage(),
                           region](vk::CommandBuffer cmdbuf) {
@@ -627,19 +648,19 @@ void Runtime::ResolveImage(VideoCore::Image* src, VideoCore::Image* dst,
         const vk::ImageResolve region = {
             .srcSubresource{
                 .aspectMask = vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
-                .baseArrayLayer = src_range.base.layer,
-                .layerCount = src_layers,
+                .mipLevel = region_plan->src.level,
+                .baseArrayLayer = region_plan->src.layer,
+                .layerCount = region_plan->src.layers,
             },
             .srcOffset = {0, 0, 0},
             .dstSubresource{
                 .aspectMask = vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
-                .baseArrayLayer = dst_range.base.layer,
-                .layerCount = dst_layers,
+                .mipLevel = region_plan->dst.level,
+                .baseArrayLayer = region_plan->dst.layer,
+                .layerCount = region_plan->dst.layers,
             },
             .dstOffset = {0, 0, 0},
-            .extent = {src->info.size.width, src->info.size.height, 1},
+            .extent = {region_plan->width, region_plan->height, 1},
         };
         scheduler.Record([src_image = src->GetImage(), dst_image = dst->GetImage(),
                           region](vk::CommandBuffer cmdbuf) {

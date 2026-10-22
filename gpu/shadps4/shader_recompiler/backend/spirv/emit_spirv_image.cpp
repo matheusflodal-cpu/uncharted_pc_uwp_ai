@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cstdlib>
+#include <cstdio>
+#ifdef UNCHARTED_UWP
+#include "shader_recompiler/backend/spirv/integer_sample.h"
+#endif
 #include <boost/container/static_vector.hpp>
 #include "shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
@@ -122,11 +126,53 @@ Id EmitImageSampleRaw(EmitContext& ctx, IR::Inst* inst, u32 handle, Id address1,
     UNREACHABLE_MSG("Unreachable instruction");
 }
 
+#ifdef UNCHARTED_UWP
+// DXIL cannot filter integer textures. A one-level view can be read with
+// texelFetch while preserving integer bits, point addressing and border rules.
+// Other cases retain the existing path and its validation; never substitute
+// zero or silently drop a shader when this bounded lowering does not apply.
+static Id IntegerSample(EmitContext& ctx, u32 handle, Id coords, const IR::Value& offset) {
+    const auto& texture=ctx.images[handle&0xffff];
+    if(!texture.is_integer) return {};
+    const auto& desc=ctx.info.images[handle&0xffff];
+    const auto image=desc.GetSharp(ctx.info);
+    const auto sampler=ctx.info.samplers[handle>>16].GetSharp(ctx.info);
+    const auto type=image.GetViewType(desc.is_array);
+    IntegerSampling::Config config{};
+    config.dimensions=type==AmdGpu::ImageType::Color1D || type==AmdGpu::ImageType::Color1DArray ? 1 :
+                      type==AmdGpu::ImageType::Color3D ? 3 : 2;
+    config.array=type==AmdGpu::ImageType::Color1DArray || type==AmdGpu::ImageType::Color2DArray;
+    config.wrap={unsigned(sampler.clamp_x.Value()),unsigned(sampler.clamp_y.Value()),unsigned(sampler.clamp_z.Value())};
+    config.border=unsigned(sampler.border_color_type.Value());
+    const auto swizzle=image.DstSelect();
+    config.swizzle={unsigned(swizzle.r),unsigned(swizzle.g),unsigned(swizzle.b),unsigned(swizzle.a)};
+    const bool supported_type=type==AmdGpu::ImageType::Color1D || type==AmdGpu::ImageType::Color1DArray ||
+        type==AmdGpu::ImageType::Color2D || type==AmdGpu::ImageType::Color2DArray || type==AmdGpu::ImageType::Color3D;
+    const bool supported=supported_type && !image.IsCube() && image.NumViewLevels(desc.is_array)==1 &&
+        sampler.xy_min_filter==AmdGpu::Filter::Point && sampler.xy_mag_filter==AmdGpu::Filter::Point &&
+        sampler.max_aniso==AmdGpu::AnisoRatio::One && sampler.filter_mode==AmdGpu::FilterMode::Blend &&
+        (config.border!=unsigned(AmdGpu::BorderColor::Custom) ||
+         (config.wrap[0]<4 && config.wrap[1]<4 && config.wrap[2]<4));
+    std::fprintf(stderr,"UWP integer sample: shader=0x%llx image=%u sampler=%u levels=%u type=%u raw_sampler=%016llx/%016llx lowering=%s\n",
+        static_cast<unsigned long long>(ctx.info.pgm_hash),handle&0xffff,handle>>16,image.NumViewLevels(desc.is_array),unsigned(type),
+        static_cast<unsigned long long>(sampler.raw0),static_cast<unsigned long long>(sampler.raw1),supported?"single-level point fetch":"unsupported; original validation retained");
+    std::fflush(stderr);
+    if(!supported) return {};
+    const Id loaded=ctx.OpLoad(texture.image_type,texture.id);
+    const Id result=IntegerSampling::Emit(ctx,config,loaded,texture.data_types->Get(4),coords,
+        offset.IsEmpty()?Id{}:ctx.OpBitcast(config.dimensions==1?ctx.TypeInt(32,true):ctx.TypeVector(ctx.TypeInt(32,true),config.dimensions),ctx.Def(offset)));
+    return ctx.OpBitcast(ctx.F32[4],result);
+}
+#endif
+
 Id EmitImageSampleImplicitLod(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords, Id bias,
                               const IR::Value& offset) {
     if (const Id forced = ForcedSample(ctx, handle, false); Sirit::ValidId(forced)) {
         return forced;
     }
+#ifdef UNCHARTED_UWP
+    if(const Id lowered=IntegerSample(ctx,handle,coords,offset);Sirit::ValidId(lowered)) return lowered;
+#endif
     const auto& texture = ctx.images[handle & 0xFFFF];
     const Id image = ctx.OpLoad(texture.image_type, texture.id);
     const Id result_type = texture.data_types->Get(4);
@@ -145,6 +191,9 @@ Id EmitImageSampleExplicitLod(EmitContext& ctx, IR::Inst* inst, u32 handle, Id c
     if (const Id forced = ForcedSample(ctx, handle, false); Sirit::ValidId(forced)) {
         return forced;
     }
+#ifdef UNCHARTED_UWP
+    if(const Id lowered=IntegerSample(ctx,handle,coords,offset);Sirit::ValidId(lowered)) return lowered;
+#endif
     const auto& texture = ctx.images[handle & 0xFFFF];
     const Id image = ctx.OpLoad(texture.image_type, texture.id);
     const Id result_type = texture.data_types->Get(4);
@@ -264,6 +313,9 @@ Id EmitImageQueryLod(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords) {
 
 Id EmitImageGradient(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords, Id derivatives_dx,
                      Id derivatives_dy, const IR::Value& offset, const IR::Value& lod_clamp) {
+#ifdef UNCHARTED_UWP
+    if(const Id lowered=IntegerSample(ctx,handle,coords,offset);Sirit::ValidId(lowered)) return lowered;
+#endif
     const auto& texture = ctx.images[handle & 0xFFFF];
     const Id image = ctx.OpLoad(texture.image_type, texture.id);
     const Id result_type = texture.data_types->Get(4);

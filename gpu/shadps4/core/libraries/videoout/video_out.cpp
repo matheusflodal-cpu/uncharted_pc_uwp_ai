@@ -464,10 +464,14 @@ s32 PS4_SYSV_ABI sceVideoOutSetWindowModeMargins(s32 handle, s32 top, s32 bottom
     return ORBIS_OK;
 }
 
-void RegisterLib(Core::Loader::SymbolsResolver* sym) {
+void InitializeDriver() {
     driver = std::make_unique<VideoOutDriver>(EmulatorSettings.GetInternalScreenWidth(),
                                               EmulatorSettings.GetInternalScreenHeight());
 
+}
+
+// Register addresses without constructing a Vulkan device, presenter or video thread.
+void RegisterSymbols(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("SbU3dwp80lQ", "libSceVideoOut", 1, "libSceVideoOut", sceVideoOutGetFlipStatus);
     LIB_FUNCTION("U46NwOiJpys", "libSceVideoOut", 1, "libSceVideoOut", sceVideoOutSubmitFlip);
     LIB_FUNCTION("w3BY+tAEiQY", "libSceVideoOut", 1, "libSceVideoOut", sceVideoOutRegisterBuffers);
@@ -510,6 +514,12 @@ void RegisterLib(Core::Loader::SymbolsResolver* sym) {
                  sceVideoOutSetWindowModeMargins);
     LIB_FUNCTION("IOdgHlCGU-k", "libSceVideoOut", 1, "libSceVideoOut",
                  sceVideoOutSubmitChangeBufferAttribute);
+}
+
+// Preserve the desktop entry point and its initialization order.
+void RegisterLib(Core::Loader::SymbolsResolver* sym) {
+    InitializeDriver();
+    RegisterSymbols(sym);
 }
 
 } // namespace Libraries::VideoOut

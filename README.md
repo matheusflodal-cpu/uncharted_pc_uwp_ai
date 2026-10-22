@@ -1,3 +1,5 @@
+> **Xbox development branch:** an experimental UWP runtime with native dump preparation, renderer diagnostics and an unvalidated game boot path, is in [xbox/README.md](xbox/README.md). The Xbox tester confirmed synthetic CPU/memory and graphics probes; actual Uncharted gameplay is not yet validated. The Windows port documented below is the upstream project.
+
 # Uncharted: The Nathan Drake Collection for Windows
 
 **Uncharted 1, 2 and 3 from the PS4 collection running natively on Windows 10 and 11, by [SuperMedo](https://github.com/Supermedo).** Mohammed Albarghouthi

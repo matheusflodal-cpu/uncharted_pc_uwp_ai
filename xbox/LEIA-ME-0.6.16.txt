@@ -1,0 +1,25 @@
+UNCHARTED UWP 0.6.16 - ISOLAR WRITEBACK DE PROFUNDIDADE
+
+1. Atualize o APPX e tente iniciar o mesmo Uncharted 3.
+2. Mantenha GPU normal + serial. 720p permanece como padrao.
+3. Teste por ate dois minutos. Guarde loader.log e errors.log antes de abrir
+   novamente; se sair antes, envie os dois logs mesmo assim.
+
+O teste vem ativado: depth-writeback.txt ausente ou com stages.
+O log registra Depth writeback #N e fases prior, copy e tiler.
+submitted significa enviado; fence_result=Success significa que o lote
+terminou na GPU. prior precisa terminar para atribuir falha aos lotes seguintes.
+Ate 32 operacoes sao separadas. As demais seguem o caminho habitual.
+
+E diagnostico: pode mudar pausas, memoria e timing. Nao pula o writeback e
+nao garante que o jogo abra. Uma etapa pode conter transicoes/copias auxiliares;
+o marcador delimita um lote, nao uma instrucao exata do shader.
+
+Para desativar sem trocar o APPX: crie depth-writeback.txt no LocalState
+com uma linha contendo off e reinicie. Para reativar, stages ou remova o arquivo.
+Parallel exige off. Modelos em Opcoes nao sao instalados automaticamente.
+Para voltar ao raster nativo, render-resolution.txt com 1080p.
+Nao precisa apagar caches nem copiar o dump novamente.
+
+Limite automatico de boot: 15 minutos. Menu/gameplay nao confirmados.
+Nenhum arquivo do jogo incluido.

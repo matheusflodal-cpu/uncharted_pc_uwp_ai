@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <map>
 #include "core/libraries/videoout/driver.h"
 #include <xxhash.h>
@@ -560,6 +563,9 @@ void Rasterizer::DrainDrawPipe(u32 reason, u32 line, const char* function) {
     if (!draw_pipe || !OnStageA()) {
         return;
     }
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::DrawDrain,reason,reinterpret_cast<uintptr_t>(this));
+#endif
     static const bool stats = std::getenv("BB_FRAME_STATS") != nullptr;
     if (!stats) {
         draw_pipe->Drain(reason);
@@ -1076,6 +1082,9 @@ bool Rasterizer::FilterDrawPasses() const {
 }
 
 void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* prepared) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Count(UnchartedBootTrace::draws);
+#endif
     RENDERER_TRACE;
     BbStats::draws.fetch_add(1, std::memory_order_relaxed);
 
@@ -1278,6 +1287,9 @@ static bool SkipShader(u64 hash) {
 
 void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw* used_prepared,
                             bool is_indexed, u32 index_offset) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope record_trace(UnchartedBootTrace::Kind::DrawRecord,0,reinterpret_cast<uintptr_t>(this));
+#endif
     if (DrawPipe::OnStageB()) {
         FrameCapture::Poll();
         scheduler.PopPendingOperations();
@@ -1775,6 +1787,9 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
 }
 
 void Rasterizer::DispatchDirect() {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Count(UnchartedBootTrace::dispatches);
+#endif
     RENDERER_TRACE;
     BbStats::dispatches.fetch_add(1, std::memory_order_relaxed);
     // bbport: like draws, handed to the draw recording thread after the pipeline selection.
@@ -1796,6 +1811,9 @@ void Rasterizer::DispatchDirect() {
 }
 
 void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope record_trace(UnchartedBootTrace::Kind::DispatchRecord,0,reinterpret_cast<uintptr_t>(this));
+#endif
     FrameCapture::Poll();
     gbuffer_draw = false;
 
@@ -2224,6 +2242,9 @@ void Rasterizer::JoinBindHelper(void* context) {
 }
 
 bool Rasterizer::BindResources(const Pipeline* pipeline) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::ResourceBind,pipeline->IsCompute(),reinterpret_cast<uintptr_t>(this));
+#endif
     if (IsComputeImageCopy(pipeline) || IsComputeMetaClear(pipeline) ||
         IsComputeImageClear(pipeline)) {
         return false;
@@ -2845,7 +2866,11 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                 // Permutations compiled without enabled planes never read the buffer, so the
                 // declared binding is satisfied with a null descriptor instead of a copy.
                 if (Regs().clipper_control.user_clip_plane_enable == 0) {
+#ifdef UNCHARTED_UWP
+                    buffer_infos.emplace_back(buffer_cache.GetNullBuffer()->Handle(),0,64_KB);
+#else
                     buffer_infos.emplace_back(VK_NULL_HANDLE, 0, VK_WHOLE_SIZE);
+#endif
                 } else {
                     auto& vk_buffer = buffer_cache.GetStreamBuffer();
                     std::array<float, AmdGpu::NUM_CLIP_PLANES * 4> planes{};
@@ -2860,6 +2885,11 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                     const u64 offset = vk_buffer.Copy(planes.data(), ubo_size, alignment);
                     buffer_infos.emplace_back(vk_buffer.Handle(), offset, ubo_size);
                 }
+#ifdef UNCHARTED_UWP
+            } else if (desc.buffer_type == Shader::BufferType::DmaBuffers) {
+                auto views=buffer_cache.GetDmaViews();
+                buffer_infos.insert(buffer_infos.end(),views.begin(),views.end());
+#endif
             } else if (desc.buffer_type == Shader::BufferType::BdaPagetable) {
                 const auto* bda_buffer = buffer_cache.GetBdaPageTableBuffer();
                 buffer_infos.emplace_back(bda_buffer->Handle(), 0, bda_buffer->SizeBytes());
@@ -2903,7 +2933,11 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                                      memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize()));
             }
             if (vsharp.base_address == 0 || vsharp.GetSize() == 0) {
+#ifdef UNCHARTED_UWP
+                buffer_infos.emplace_back(buffer_cache.GetNullBuffer()->Handle(),0,64_KB);
+#else
                 buffer_infos.emplace_back(VK_NULL_HANDLE, 0, VK_WHOLE_SIZE);
+#endif
             } else {
                 const u64 size = memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize());
                 if (size != vsharp.GetSize()) {
@@ -2954,9 +2988,9 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
         set_write.dstSet = VK_NULL_HANDLE;
         set_write.dstBinding = binding.unified++;
         set_write.dstArrayElement = 0;
-        set_write.descriptorCount = 1;
+        set_write.descriptorCount = desc.buffer_type == Shader::BufferType::DmaBuffers ? Shader::NUM_DMA_BUFFERS : 1u;
         set_write.descriptorType = vk::DescriptorType::eStorageBuffer;
-        set_write.pBufferInfo = &buffer_infos.back();
+        set_write.pBufferInfo = buffer_infos.data() + buffer_infos.size() - set_write.descriptorCount;
         ++binding.buffer;
     }
 }
@@ -3243,7 +3277,11 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         const auto& desc = *desc_ptr;
         bool is_storage = desc.type == VideoCore::TextureCache::BindingType::Storage;
         if (!image_id) {
+#ifdef UNCHARTED_UWP
+            image_infos.emplace_back(VK_NULL_HANDLE,texture_cache.NullView(),vk::ImageLayout::eGeneral);
+#else
             image_infos.emplace_back(VK_NULL_HANDLE, VK_NULL_HANDLE, vk::ImageLayout::eGeneral);
+#endif
         } else {
             if (auto& old_image = texture_cache.GetImage(image_id);
                 old_image.binding.needs_rebind) {
@@ -3467,7 +3505,11 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
     for (u32 i = 0; i < count; ++i) {
         const auto& entry = set.entries[i];
         if (!entry.id) {
+#ifdef UNCHARTED_UWP
+            image_infos.emplace_back(VK_NULL_HANDLE,texture_cache.NullView(),vk::ImageLayout::eGeneral);
+#else
             image_infos.emplace_back(VK_NULL_HANDLE, VK_NULL_HANDLE, vk::ImageLayout::eGeneral);
+#endif
             continue;
         }
         texture_cache.MarkFound(entry.id);
@@ -3566,7 +3608,13 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         scene_targets->EligibleScene(texture_cache.GetImage(db_desc.first))) scene_started = true;
     // A proxy attachment cannot represent MSAA or a feedback loop that reads the
     // same image through the guest's native descriptor during this draw.
+#ifdef UNCHARTED_UWP
+    // UWP's spatial-only test can scale eligible boot/UI passes too; it does
+    // not depend on the original deferred-scene/camera detection heuristic.
+    bool reduced = upscaler->RasterScaling() && key.num_samples == 1;
+#else
     bool reduced = scene_started && upscaler->RasterScaling() && key.num_samples == 1;
+#endif
     // BB_SCENE_DEBUG=<file>: once the file exists, why the passes of one frame keep the
     // native size (see NoteFrameStart).
     const bool debug_pass = scene_debug_frame && scene_started;
@@ -3843,6 +3891,9 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
 
     if (reduced) {
         // Half-resolution passes keep the scene's factor (proxy / native = scene / 1920).
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Count(UnchartedBootTrace::scaled_draws);
+#endif
         const auto size = scene_targets->Size();
         const auto proxy = pass_size.value_or(size);
         state.width = proxy.width;

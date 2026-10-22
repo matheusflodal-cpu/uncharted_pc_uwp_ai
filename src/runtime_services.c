@@ -8,6 +8,7 @@
 #include "runtime.h"
 #include "gpu/bbgpu.h"
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -15,6 +16,9 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#ifdef UNCHARTED_UWP
+#include "dialog_trace.h"
+#endif
 #else
 #include <arpa/inet.h>
 #endif
@@ -225,7 +229,24 @@ static int32_t dialog_term(int i) {
     static ABI int32_t tag##_open(const void *p) { (void)p; return dialog_open(i); } \
     static ABI int32_t tag##_status(void) { return dialog_status(i); } \
     static ABI int32_t tag##_term(void) { return dialog_term(i); }
-DIALOG(msg,1) DIALOG(profile,3) DIALOG(commerce,4)
+static ABI int32_t msg_init(void) { return dialog_init(1); }
+static ABI int32_t msg_status(void) { return dialog_status(1); }
+static ABI int32_t msg_term(void) { return dialog_term(1); }
+#ifdef UNCHARTED_UWP
+static int msg_trace_read(void* unused,const void* guest,void* buffer,size_t size) {
+    (void)unused;SIZE_T read=0;
+    return ReadProcessMemory(GetCurrentProcess(),guest,buffer,size,&read) && read==size;
+}
+#endif
+static ABI int32_t msg_open(const void* param) {
+#ifdef UNCHARTED_UWP
+    if(dialogs[1].initialized) uncharted_dialog_trace(stdout,param,msg_trace_read,NULL);
+#else
+    (void)param;
+#endif
+    return dialog_open(1);
+}
+DIALOG(profile,3) DIALOG(commerce,4)
 /* SaveDataDialog. Dialogs that only wait (progress bar, a message without buttons, the
  * "progress" system message) stay running until the game closes them, as on the console;
  * the others are answered OK/Yes when the game next asks for the status.

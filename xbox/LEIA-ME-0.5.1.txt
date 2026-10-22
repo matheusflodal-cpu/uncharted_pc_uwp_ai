@@ -1,0 +1,28 @@
+UNCHARTED UWP 0.5.1 — CORRECAO DA INICIALIZACAO DO OVERLAY
+
+Ainda nao ha gameplay confirmado. Nao inclui arquivos do jogo.
+Seu teste de controle passou e voce confirmou a vibracao. Nao precisa repetir.
+
+INSTALAR
+Extraia o ZIP e atualize o .appx no Device Portal. Se pedido, inclua a
+VCLibs da pasta Dependencies. A identidade continua UnchartedUwpProbe.
+Nao precisa copiar o dump novamente nem apagar a pasta Prepared.
+Se um run.txt antigo pular o menu, substitua-o pelo da pasta Opcoes.
+
+TESTE
+1. Abra o app.
+2. Escolha Selecionar jogo > Uncharted 3 > Tentar iniciar.
+3. Depois da tentativa, copie loader.log E errors.log do LocalState.
+4. Envie os dois logs, mesmo se a tela continuar preta ou o app fechar.
+Guarde-os antes de abrir o app novamente: cada execucao reescreve os logs.
+
+O QUE MUDOU
+O menu grafico interno (overlay) tentava inicializar mesmo quando faltavam
+funcoes Vulkan. Agora a falha desabilita esse menu com uma mensagem que
+identifica a funcao ausente, permitindo continuar a inicializacao grafica.
+O menu inicial de selecao do jogo continua disponivel.
+Os logs tambem registram etapas adicionais da inicializacao da GPU.
+
+O teste verifica se passamos da queda da versao 0.5 e identifica o proximo
+bloqueio. Ainda faltam servicos de audio, rede/PSN e sistema. Esta versao
+nao garante chegar ao menu do Uncharted nem ser jogavel.

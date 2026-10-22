@@ -1,0 +1,57 @@
+{
+  "fmt": [
+    "https://codeload.github.com/fmtlib/fmt/tar.gz/11ddbcb7898d2d3445d431a54814367b21dee6ad",
+    "7465e374dc24a8f01dde5618dcb04d66692bec9190371fd8ea4349f409867e10",
+    "LICENSE"
+  ],
+  "sdl": [
+    "https://codeload.github.com/libsdl-org/SDL/tar.gz/fa2c02bb6e21974a89ea9824bc53c9932abe5f9c",
+    "d246967187a4f37cc850608dbaf5cff9d1df4d731259903d25539755cdfcc657",
+    "LICENSE.txt"
+  ],
+  "zydis": [
+    "https://codeload.github.com/zyantific/zydis/tar.gz/120e0e705f8e3b507dc49377ac2879979f0d545c",
+    "2ed57a3bd77a2a10fe354638ea5a487582bb944b0d897b58c0e4d2acf466c126",
+    "LICENSE"
+  ],
+  "zycore": [
+    "https://codeload.github.com/zyantific/zycore-c/tar.gz/38d4f0285e6157ee840ea82a9b90aba71c8a705d",
+    "fcc8de568292cf8f1793bf62e9fcf12bc70ea661a54c932690607f5ac2a8cb5c",
+    "LICENSE"
+  ],
+  "xxhash": [
+    "https://codeload.github.com/Cyan4973/xxHash/tar.gz/e573d4d2aaeaba0f3e5a0a9a54144a1f2b4b56e7",
+    "714198f8441f56eeaec0f287c2a846ee2f07c646e9d8e40cf2bb8b2e759d2830",
+    "LICENSE"
+  ],
+  "vma": [
+    "https://codeload.github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/tar.gz/a1d434708c217b2a6c7b365f1fe41fa03a562e59",
+    "850406caac450abd5eb4d9988d45229587232f96ddc10f5e0fcb5568237e9dcd",
+    "LICENSE.txt"
+  ],
+  "vulkan-headers": [
+    "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/refs/tags/v1.4.365",
+    "ed832b3292cce324ebba6522fd2d3004bf1b797fa49bfbcad0b302ff23d56abc",
+    "LICENSE.md"
+  ],
+  "robin-map": [
+    "https://codeload.github.com/Tessil/robin-map/tar.gz/refs/tags/v1.3.0",
+    "a8424ad3b0affd4c57ed26f0f3d8a29604f0e1f2ef2089f497f614b1c94c7236",
+    "LICENSE"
+  ],
+  "glslang": [
+    "https://codeload.github.com/KhronosGroup/glslang/tar.gz/refs/tags/16.6.0",
+    "9c09b901149c729df745057dafa815278aaa101b84d2b6e14f16a42de52f97f2",
+    "LICENSE.txt"
+  ],
+  "ffmpeg": [
+    "https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz",
+    "733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1",
+    "COPYING.LGPLv2.1"
+  ],
+  "nasm": [
+    "https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/win64/nasm-2.16.03-win64.zip",
+    "3ee4782247bcb874378d02f7eab4e294a84d3d15f3f6ee2de2f47a46aa7226e6",
+    "LICENSE"
+  ]
+}

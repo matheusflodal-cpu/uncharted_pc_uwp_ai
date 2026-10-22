@@ -61,26 +61,85 @@ _Static_assert(sizeof(BatchEntry)==32,"PS4 batch map entry layout");
 /* Region table lock. Lookups (GPU per-draw queries, VirtualQuery, GPU page
  * protection) share it; map/unmap/protect take it exclusively. Both nest: code
  * under the lock may write guest memory, and a GPU-tracked page then faults into
- * runtime_memory_gpu_protect on the same thread. Readers nest because glibc's
- * default rwlock prefers readers; a thread holding it exclusively skips relocking. */
+ * runtime_memory_gpu_protect on the same thread. UWP counts nested readers around
+ * its native SRW lock; POSIX readers nest with the default reader-preferring rwlock.
+ * A thread holding the table exclusively skips relocking. */
+#ifdef UNCHARTED_UWP
+static SRWLOCK lock=SRWLOCK_INIT;
+static __thread unsigned shared_depth;
+#else
 static pthread_rwlock_t lock=PTHREAD_RWLOCK_INITIALIZER;
+#endif
 static __thread unsigned exclusive_depth;
 /* Odd while a writer holds the lock; readers' region caches are valid for one even value. */
 static uint64_t table_generation;
-static void write_lock(void) {
-    if (!exclusive_depth++) { pthread_rwlock_wrlock(&lock); __atomic_add_fetch(&table_generation,1,__ATOMIC_ACQ_REL); }
+#ifdef UNCHARTED_UWP
+static __thread uint64_t profile_write_started;
+static __thread const char *profile_write_operation;
+static int profile_memory_lock(void) {
+    const char *value=getenv("BB_IO_STATS");
+    return value&&*value=='1';
+}
+#endif
+static void write_lock_at(const char *operation) {
+    if (!exclusive_depth++) {
+#ifdef UNCHARTED_UWP
+        AcquireSRWLockExclusive(&lock);
+#else
+        pthread_rwlock_wrlock(&lock);
+#endif
+        __atomic_add_fetch(&table_generation,1,__ATOMIC_ACQ_REL);
+#ifdef UNCHARTED_UWP
+        profile_write_started=profile_memory_lock() ? GetTickCount64() : 0;
+        profile_write_operation=operation;
+#else
+        (void)operation;
+#endif
+    }
 }
 static void write_unlock(void) {
-    if (!--exclusive_depth) { __atomic_add_fetch(&table_generation,1,__ATOMIC_RELEASE); pthread_rwlock_unlock(&lock); }
+    if (!--exclusive_depth) {
+#ifdef UNCHARTED_UWP
+        const uint64_t elapsed=profile_write_started ? GetTickCount64()-profile_write_started : 0;
+#endif
+        __atomic_add_fetch(&table_generation,1,__ATOMIC_RELEASE);
+#ifdef UNCHARTED_UWP
+        ReleaseSRWLockExclusive(&lock);
+#else
+        pthread_rwlock_unlock(&lock);
+#endif
+#ifdef UNCHARTED_UWP
+        if(elapsed>=40) printf("Memory lock: %s held region table for %llu ms\n",profile_write_operation,(unsigned long long)elapsed);
+#endif
+    }
 }
-static void read_lock(void) { if (!exclusive_depth) pthread_rwlock_rdlock(&lock); }
-static void read_unlock(void) { if (!exclusive_depth) pthread_rwlock_unlock(&lock); }
+#define write_lock() write_lock_at(__func__)
+static void read_lock(void) {
+    if (exclusive_depth) return;
+#ifdef UNCHARTED_UWP
+    // Native SRW locks do not support recursive shared acquisition when a writer
+    // is waiting. Only the outermost reader enters the OS lock.
+    if (!shared_depth++) AcquireSRWLockShared(&lock);
+#else
+    pthread_rwlock_rdlock(&lock);
+#endif
+}
+static void read_unlock(void) {
+    if (exclusive_depth) return;
+#ifdef UNCHARTED_UWP
+    if (!--shared_depth) ReleaseSRWLockShared(&lock);
+#else
+    pthread_rwlock_unlock(&lock);
+#endif
+}
 static Block blocks[LIMIT];
 static Vma *vmas; static size_t vma_count, vma_capacity;
 #ifndef _WIN32
 static int pool_fd=-1;
 #endif
+#ifndef UNCHARTED_UWP
 static unsigned char *backing_base; /* second view of the pool: host writes bypass guest/GPU page protection */
+#endif
 #define FLEX_SPAN (UINT64_C(1024) * 1024 * 1024)
 static uint64_t flex_bitmap[FLEX_SPAN/PAGE/64];
 /* GPU hooks (bbgpu): notified outside the lock, in order, after each operation. */
@@ -98,7 +157,9 @@ static int host_prot(int prot) {
     /* GPU read/write bits (0x10/0x20) need host access for the future GPU backend. */
     return ((prot & 0x11) ? PROT_READ : 0) | ((prot & 0x22) ? PROT_WRITE|PROT_READ : 0) | ((prot & 4) ? PROT_EXEC|PROT_READ : 0);
 }
-#ifdef _WIN32
+#ifdef UNCHARTED_UWP
+#include "guest_memory.inc"
+#elif defined(_WIN32)
 /* ---- host mappings (Windows) ----
  * [USER_MIN,USER_MAX) is covered by regions, each one placeholder or one view of the
  * section. Mapping a range carves it out as a single placeholder first: views overlapping
@@ -323,6 +384,7 @@ static int vma_insert(size_t at, Vma v) {
     vmas[at]=v; ++vma_count; return 0;
 }
 static void vma_erase(size_t at, size_t n) {
+    if (!n) return; /* An empty table can have a null base; do not pass it to memmove. */
     memmove(vmas+at,vmas+at+n,(vma_count-at-n)*sizeof(*vmas)); vma_count-=n;
 }
 static int split_at(uintptr_t a) {
@@ -330,7 +392,7 @@ static int split_at(uintptr_t a) {
     if (i==vma_count || vmas[i].start>=a) return 0;
     Vma right=vmas[i];
     right.start=a;
-    if (right.kind==KIND_DIRECT) right.phys+=a-vmas[i].start;
+    if (right.kind==KIND_DIRECT || right.kind==KIND_FLEXIBLE) right.phys+=a-vmas[i].start;
     vmas[i].end=a;
     return vma_insert(i+1,right);
 }
@@ -355,10 +417,21 @@ static int overlaps(uintptr_t start, uintptr_t end, int ignore_reserved) {
 /* First-fit search in the PS4 user range, starting from the hint. */
 static uintptr_t find_free(uintptr_t hint, uint64_t size, uint64_t alignment) {
     uintptr_t at=align_up(hint<USER_MIN ? USER_MIN : hint, alignment);
+#ifdef UNCHARTED_UWP
+    while (size<=USER_MAX-at) {
+        size_t i=vma_index(at);
+        if (i<vma_count && vmas[i].start<at+size) { at=align_up(vmas[i].end,alignment); continue; }
+        uintptr_t available=uwp_available(at,size);
+        if (!available) return 0;
+        if (available!=at) { at=align_up(available,alignment); continue; }
+        return at;
+    }
+#else
     for (size_t i=vma_index(at); at+size<=USER_MAX; ++i) {
         if (i==vma_count || vmas[i].start>=at+size) return at;
         at=align_up(vmas[i].end,alignment);
     }
+#endif
     return 0;
 }
 static void drop_range(uintptr_t start, uintptr_t end) {
@@ -657,10 +730,62 @@ static ABI int32_t batch_map2(BatchEntry *entries, int count, int *processed, in
 static ABI int32_t batch_map(BatchEntry *entries, int count, int *processed) {
     return batch_map2(entries,count,processed,MAP_FIXED_FLAG);
 }
+/* POSIX libkernel entry points used by the bundled native C runtime. They share
+ * the guest VMA/flexible-memory backend, never the host CRT's address space.
+ * File-backed mmap is deliberately rejected until guest file mappings are implemented.
+ */
+static void *posix_map_failure(int error) {
+    *runtime_errno()=error;
+    return (void *)(uintptr_t)UINTPTR_MAX;
+}
+static ABI void *posix_mmap(void *address,uint64_t length,int prot,int flags,int fd,int64_t offset) {
+    enum { GUEST_SHARED=1, GUEST_PRIVATE=2, GUEST_ANON=0x1000 };
+    const int allowed=GUEST_SHARED|GUEST_PRIVATE|GUEST_ANON|MAP_FIXED_FLAG;
+    if(!length||length>UINT64_MAX-(PAGE-1)||(prot&~7)||(flags&~allowed)||
+       ((flags&(GUEST_SHARED|GUEST_PRIVATE))!=GUEST_PRIVATE && (flags&(GUEST_SHARED|GUEST_PRIVATE))!=GUEST_SHARED)||
+       offset<0||((uint64_t)offset&(PAGE-1))||
+       ((flags&MAP_FIXED_FLAG)&&((uintptr_t)address&(PAGE-1)))) return posix_map_failure(22);
+    if(!(flags&GUEST_ANON)) return posix_map_failure(78); /* ENOSYS: not a fake file mapping */
+    if(fd!=-1||offset) return posix_map_failure(22);
+    uint64_t size=align_up(length,PAGE);
+    if(size>FLEXIBLE_SIZE) return posix_map_failure(12);
+    void *result=address;
+    int32_t error=map_flexible(&result,size,prot,flags&MAP_FIXED_FLAG);
+    return error ? posix_map_failure((int)(uint32_t)error&0xffff) : result;
+}
+static ABI int32_t posix_munmap(void *address,uint64_t length) {
+    if(!length||length>UINT64_MAX-(PAGE-1)||((uintptr_t)address&(PAGE-1))) { *runtime_errno()=22; return -1; }
+    uint64_t size=align_up(length,PAGE);
+    if((uintptr_t)address>UINTPTR_MAX-size) { *runtime_errno()=22; return -1; }
+    int32_t error=direct_unmap(address,size);
+    if(error) { *runtime_errno()=(int)(uint32_t)error&0xffff; return -1; }
+    return 0;
+}
+static ABI int32_t posix_msync(void *address,uint64_t length,int flags) {
+    /* FreeBSD: MS_SYNC=0, MS_ASYNC=1, MS_INVALIDATE=2. Anonymous pages have no
+     * user file to flush; validate the entire range and accept synchronization.
+     */
+    uintptr_t start=(uintptr_t)address;
+    if((start&(PAGE-1))||!length||length>UINT64_MAX-(PAGE-1)||(flags&~3)) {
+        *runtime_errno()=22; return -1;
+    }
+    uint64_t size=align_up(length,PAGE);
+    if(start>UINTPTR_MAX-size) { *runtime_errno()=22; return -1; }
+    read_lock();
+    int mapped_range=covered(start,start+size,0);
+    int anonymous=1;
+    if(mapped_range) for(size_t i=vma_index(start);i<vma_count&&vmas[i].start<start+size;++i)
+        if(vmas[i].kind!=KIND_FLEXIBLE) anonymous=0;
+    read_unlock();
+    if(!mapped_range||!anonymous) { *runtime_errno()=mapped_range ? 78 : 12; return -1; }
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    return 0;
+}
 static const RuntimeExport exports[]={
     {"sceKernelGetDirectMemorySize",direct_size}, {"sceKernelAllocateDirectMemory",direct_allocate},
     {"sceKernelMapDirectMemory",direct_map}, {"sceKernelMapNamedDirectMemory",direct_map_named},
-    {"sceKernelReleaseDirectMemory",direct_release}, {"sceKernelMunmap",direct_unmap}, {"munmap",direct_unmap},
+    {"sceKernelReleaseDirectMemory",direct_release}, {"sceKernelMunmap",direct_unmap}, {"munmap",posix_munmap},
+    {"mmap",posix_mmap}, {"msync",posix_msync},
     {"sceKernelMapFlexibleMemory",map_flexible}, {"sceKernelMapNamedFlexibleMemory",map_flexible_named},
     {"sceKernelReleaseFlexibleMemory",release_flexible}, {"sceKernelReserveVirtualRange",reserve_range},
     {"sceKernelMprotect",kernel_mprotect}, {"sceKernelQueryMemoryProtection",query_protection},
@@ -779,7 +904,11 @@ int runtime_memory_write_backing(uintptr_t address, const void *data, uint64_t s
         size_t i=vma_index(at);
         if (i==vma_count || vmas[i].start>at || vmas[i].kind==KIND_RESERVED) { ok=0; break; }
         uint64_t n=(vmas[i].end<end ? vmas[i].end : end)-at;
+#ifdef UNCHARTED_UWP
+        if (!uwp_backing_write(at,(const unsigned char *)data+(at-address),n)) { ok=0; break; }
+#else
         memcpy(backing_base+vmas[i].phys+(at-vmas[i].start),(const unsigned char *)data+(at-address),n);
+#endif
         at+=n;
     }
     read_unlock();
@@ -858,9 +987,15 @@ int runtime_memory_is_mapped(uintptr_t address, uint64_t size) {
     return result;
 }
 void runtime_memory_report(void) {
+#ifdef UNCHARTED_UWP
+    uwp_memory_report();
+#endif
     printf("Runtime: direct memory allocations=%zu, maps=%zu, live=%" PRIu64 ", budget=%" PRIu64 "\n",
            allocations, maps, live_bytes, POOL_SIZE);
     printf("Runtime: flexible maps=%zu, in use=%" PRIu64 ", protects=%zu, queries=%zu, regions=%zu\n",
            flexible_maps, flexible_bytes, protects, queries, vma_count);
 }
+#ifdef UNCHARTED_UWP
+#include "guest_memory_test.inc"
+#endif
 

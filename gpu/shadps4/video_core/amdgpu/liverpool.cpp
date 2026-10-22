@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 #include <chrono>
 #include <pthread.h>
 #ifndef _WIN32
@@ -174,9 +177,15 @@ void Liverpool::Process(std::stop_token stoken) {
             if (not_before > std::chrono::steady_clock::now()) {
                 std::this_thread::sleep_until(not_before);
             }
+#ifdef UNCHARTED_UWP
+            UnchartedBootTrace::NoteQueue(curr_qid,UnchartedBootTrace::QueueEvent::Resume);
+#endif
             task.resume();
 
             if (task.done()) {
+#ifdef UNCHARTED_UWP
+                UnchartedBootTrace::NoteQueue(curr_qid,UnchartedBootTrace::QueueEvent::Complete);
+#endif
                 task.destroy();
 
                 std::scoped_lock lock{queue.m_access};
@@ -805,6 +814,9 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         case 3:
             const u32 count = header->type3.NumWords();
             const PM4ItOpcode opcode = header->type3.opcode;
+#ifdef UNCHARTED_UWP
+            UnchartedBootTrace::NotePacket(0,static_cast<u32>(opcode),reinterpret_cast<uintptr_t>(header));
+#endif
             ApplyGraphicsRegisterPacket(regs, header, gfx_reg_checksum, &pipe_dirty);
             // DmaData to 0x3022C does nothing here (skipped below): no need to wait.
             if (rasterizer && !PipelinedOpcode(opcode) &&
@@ -1249,7 +1261,13 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 if (mem_semaphore->IsSignaling()) {
                     mem_semaphore->Signal();
                 } else {
+#ifdef UNCHARTED_UWP
+                    UnchartedBootTrace::QueueWait trace(0,4,mem_semaphore->Address<u64>(),0,~0ull,6);
+#endif
                     while (!mem_semaphore->Signaled()) {
+#ifdef UNCHARTED_UWP
+                        trace.Poll([&] { return *mem_semaphore->Address<u64*>(); });
+#endif
                         YIELD_GFX();
                     }
                     mem_semaphore->Decrement();
@@ -1265,7 +1283,13 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     break;
                 }
                 const PM4CmdRewind* rewind = reinterpret_cast<const PM4CmdRewind*>(header);
+#ifdef UNCHARTED_UWP
+                UnchartedBootTrace::QueueWait trace(0,5,reinterpret_cast<uintptr_t>(rewind));
+#endif
                 while (!rewind->Valid()) {
+#ifdef UNCHARTED_UWP
+                    trace.Poll([&] { return rewind->raw; });
+#endif
                     YIELD_GFX();
                 }
                 break;
@@ -1283,7 +1307,16 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     if (rasterizer) {
                         rasterizer->DrainDrawPipe(static_cast<u32>(opcode));
                     }
+#ifdef UNCHARTED_UWP
+                    UnchartedBootTrace::QueueWait trace(0,3,wait_reg_mem->Address<u64>(),wait_reg_mem->ref,wait_reg_mem->mask,u32(wait_reg_mem->function.Value()));
+                    vo_port->WaitVoLabel([&] {
+                        const bool ready=wait_reg_mem->Test(regs.reg_array);
+                        if(!ready) trace.Poll([&] { return *wait_reg_mem->Address(); });
+                        return ready;
+                    });
+#else
                     vo_port->WaitVoLabel([&] { return wait_reg_mem->Test(regs.reg_array); });
+#endif
                     break;
                 }
                 // bbport: a fence handed to the draw recording thread counts as written: that
@@ -1297,7 +1330,16 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 }
                 // Else the value may come from a fence that thread has yet to write: let it
                 // catch up before yielding to other queues.
+#ifdef UNCHARTED_UWP
+                const bool memory_wait=wait_reg_mem->mem_space.Value()==PM4CmdWaitRegMem::MemSpace::Memory;
+                UnchartedBootTrace::QueueWait trace(0,memory_wait?1:2,
+                    memory_wait?wait_reg_mem->Address<u64>():wait_reg_mem->Reg(),
+                    wait_reg_mem->ref,wait_reg_mem->mask,u32(wait_reg_mem->function.Value()));
+#endif
                 while (!wait_reg_mem->Test(regs.reg_array)) {
+#ifdef UNCHARTED_UWP
+                    trace.Poll([&] { return memory_wait?*wait_reg_mem->Address():regs.reg_array[wait_reg_mem->Reg()]; });
+#endif
                     if (rasterizer && !rasterizer->DrawPipeIdle()) {
                         rasterizer->DrainDrawPipe(static_cast<u32>(opcode));
                         continue;
@@ -1460,6 +1502,9 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         }
 
         const PM4ItOpcode opcode = header->type3.opcode;
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::NotePacket(vqid+1,static_cast<u32>(opcode),reinterpret_cast<uintptr_t>(header));
+#endif
 
         const auto* it_body = reinterpret_cast<const u32*>(header) + 1;
         switch (opcode) {
@@ -1632,7 +1677,13 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
             if (mem_semaphore->IsSignaling()) {
                 mem_semaphore->Signal();
             } else {
+#ifdef UNCHARTED_UWP
+                UnchartedBootTrace::QueueWait trace(vqid+1,4,mem_semaphore->Address<u64>(),0,~0ull,6);
+#endif
                 while (!mem_semaphore->Signaled()) {
+#ifdef UNCHARTED_UWP
+                    trace.Poll([&] { return *mem_semaphore->Address<u64*>(); });
+#endif
                     YIELD_ASC(vqid);
                 }
                 mem_semaphore->Decrement();
@@ -1642,7 +1693,16 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         case PM4ItOpcode::WaitRegMem: {
             const auto* wait_reg_mem = reinterpret_cast<const PM4CmdWaitRegMem*>(header);
             ASSERT(wait_reg_mem->engine.Value() == PM4CmdWaitRegMem::Engine::Me);
+#ifdef UNCHARTED_UWP
+            const bool memory_wait=wait_reg_mem->mem_space.Value()==PM4CmdWaitRegMem::MemSpace::Memory;
+            UnchartedBootTrace::QueueWait trace(vqid+1,memory_wait?1:2,
+                memory_wait?wait_reg_mem->Address<u64>():wait_reg_mem->Reg(),
+                wait_reg_mem->ref,wait_reg_mem->mask,u32(wait_reg_mem->function.Value()));
+#endif
             while (!wait_reg_mem->Test(regs.reg_array)) {
+#ifdef UNCHARTED_UWP
+                trace.Poll([&] { return memory_wait?*wait_reg_mem->Address():regs.reg_array[wait_reg_mem->Reg()]; });
+#endif
                 YIELD_ASC(vqid);
             }
             break;
@@ -1743,6 +1803,9 @@ void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
         }
         auto task = ProcessGraphics(dcb, ccb, seq);
         queue.submits.emplace(task.handle);
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::NoteQueue(0,UnchartedBootTrace::QueueEvent::Submit);
+#endif
         if (SubmitDelay().count()) {
             queue.submit_times.push(std::chrono::steady_clock::now());
         }
@@ -1763,6 +1826,9 @@ void Liverpool::SubmitAsc(u32 gnm_vqid, std::span<const u32> acb) {
     {
         std::scoped_lock lock{queue.m_access};
         queue.submits.emplace(task.handle);
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::NoteQueue(gnm_vqid,UnchartedBootTrace::QueueEvent::Submit);
+#endif
         if (SubmitDelay().count()) {
             queue.submit_times.push(std::chrono::steady_clock::now());
         }

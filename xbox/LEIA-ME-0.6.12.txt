@@ -1,0 +1,21 @@
+UNCHARTED UWP 0.6.12 — CORRECAO DA ALOCACAO DO DIAGNOSTICO
+
+A 0.6.11 nao instalou o rastreamento especifico no Xbox. Esta versao corrige
+sua alocacao: grava em memoria RW e depois a torna executavel RX pelas APIs
+UWP. Nao e uma correcao confirmada para o DEVICE_HUNG nem para chegar ao menu.
+
+1. Atualize o APPX e selecione o mesmo Uncharted 3.
+2. Mantenha gpu-sync.txt em normal e gpu-execution.txt em serial.
+3. Mantenha task-trace.txt com on no LocalState. O modelo em Opcoes no ZIP
+   nao e instalado automaticamente pelo APPX. Nao precisa de outra config.
+4. Se permanecer carregando por cerca de dois minutos, feche e guarde
+   loader.log e errors.log antes de reabrir. Se fechar antes, guarde os dois.
+
+O log deve mostrar Loading poll profile: installed e RW-to-RX sealed.
+Se a instalacao falhar, registra a etapa e o erro Win32. As linhas poll_last
+mostram a ultima amostra por thread: objeto, valor atual, alvo, modo, chamador,
+contagem e idade. Uma amostra antiga nao prova que a espera continua ativa.
+
+Nao apague caches nem transfira o jogo novamente. Os arquivos do dump nao
+sao alterados. O limite automatico continua 15 minutos. Menu e gameplay ainda
+nao foram confirmados. Nenhum arquivo do jogo incluido.

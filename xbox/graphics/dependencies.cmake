@@ -1,0 +1,56 @@
+# Third-party code of the UWP renderer, at the versions xbox/scripts/build-deps.ps1 fetches and builds
+# into UNCHARTED_DEPS (fmt, Zydis, SDL and xxHash compile here; glslang and FFmpeg are prebuilt there).
+set(uncharted_deps "${UNCHARTED_DEPS}")
+foreach(required ffmpeg-install/lib/libavcodec.a glslang-install/bin/glslang.exe fmt/CMakeLists.txt sdl/CMakeLists.txt boost/include)
+  if(NOT EXISTS "${uncharted_deps}/${required}")
+    message(FATAL_ERROR "${uncharted_deps}/${required} is missing: run xbox/scripts/build-deps.ps1 first")
+  endif()
+endforeach()
+
+# The UWP targets link without the desktop default libraries; the dependencies' own configure
+# checks still need them to link their test programs.
+set(uncharted_standard_c "${CMAKE_C_STANDARD_LIBRARIES}")
+set(uncharted_standard_cxx "${CMAKE_CXX_STANDARD_LIBRARIES}")
+set(CMAKE_C_STANDARD_LIBRARIES "${CMAKE_C_STANDARD_LIBRARIES_INIT}")
+set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES_INIT}")
+
+set(FMT_INSTALL OFF CACHE BOOL "" FORCE)
+set(FMT_DOC OFF CACHE BOOL "" FORCE)
+set(FMT_TEST OFF CACHE BOOL "" FORCE)
+# fmt builds a C++20 module with Ninja 1.11+, which clang-cl cannot scan; the launcher uses the headers.
+set(FMT_MODULE OFF CACHE BOOL "" FORCE)
+add_subdirectory("${uncharted_deps}/fmt" "${CMAKE_BINARY_DIR}/deps/fmt" EXCLUDE_FROM_ALL)
+
+set(ZYAN_ZYCORE_PATH "${uncharted_deps}/zycore" CACHE PATH "" FORCE)
+foreach(option ZYDIS_BUILD_SHARED_LIB ZYDIS_BUILD_EXAMPLES ZYDIS_BUILD_TOOLS ZYDIS_BUILD_TESTS ZYDIS_BUILD_MAN
+               ZYDIS_BUILD_DOXYGEN ZYCORE_BUILD_SHARED_LIB ZYCORE_BUILD_EXAMPLES ZYCORE_BUILD_TESTS)
+  set(${option} OFF CACHE BOOL "" FORCE)
+endforeach()
+add_subdirectory("${uncharted_deps}/zydis" "${CMAKE_BINARY_DIR}/deps/zydis" EXCLUDE_FROM_ALL)
+
+# UWP owns its window and event loop. Retain SDL's event/key type declarations
+# for the shared overlay interface, without linking SDL's desktop runtime.
+add_library(uncharted_sdl_headers INTERFACE)
+target_include_directories(uncharted_sdl_headers INTERFACE "${uncharted_deps}/sdl/include")
+target_compile_definitions(uncharted_sdl_headers INTERFACE SDL_STATIC_LIB)
+add_library(PkgConfig::SDL3 ALIAS uncharted_sdl_headers)
+
+set(CMAKE_C_STANDARD_LIBRARIES "${uncharted_standard_c}")
+set(CMAKE_CXX_STANDARD_LIBRARIES "${uncharted_standard_cxx}")
+
+add_library(Boost::headers INTERFACE IMPORTED GLOBAL)
+set_target_properties(Boost::headers PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${uncharted_deps}/boost/include")
+add_library(tsl::robin_map INTERFACE IMPORTED GLOBAL)
+set_target_properties(tsl::robin_map PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${uncharted_deps}/robin-map/include")
+add_library(GPUOpen::VulkanMemoryAllocator INTERFACE IMPORTED GLOBAL)
+set_target_properties(GPUOpen::VulkanMemoryAllocator PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${uncharted_deps}/vma/include")
+add_library(Vulkan::Headers INTERFACE IMPORTED GLOBAL)
+set_target_properties(Vulkan::Headers PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${uncharted_deps}/vulkan-headers/include")
+set(GLSLANG_COMPILER "${uncharted_deps}/glslang-install/bin/glslang.exe")
+set(uncharted_ffmpeg "${uncharted_deps}/ffmpeg-install")
+add_library(PkgConfig::FFMPEG INTERFACE IMPORTED GLOBAL)
+set_target_properties(PkgConfig::FFMPEG PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${uncharted_ffmpeg}/include" INTERFACE_LINK_LIBRARIES "${uncharted_ffmpeg}/lib/libavformat.a;${uncharted_ffmpeg}/lib/libavcodec.a;${uncharted_ffmpeg}/lib/libavutil.a;${uncharted_ffmpeg}/lib/libswscale.a;${uncharted_ffmpeg}/lib/libswresample.a")
+add_library(uncharted_xxhash STATIC "${uncharted_deps}/xxhash/xxhash.c")
+target_include_directories(uncharted_xxhash PUBLIC "${uncharted_deps}/xxhash")
+add_library(PkgConfig::XXHASH ALIAS uncharted_xxhash)
+set(UNCHARTED_UWP_DEPENDENCIES_READY TRUE)

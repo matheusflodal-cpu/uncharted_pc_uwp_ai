@@ -14,6 +14,7 @@
 #include "bbport_settings.h"
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
+#include "bbport_overlay_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 
@@ -119,9 +120,14 @@ ImGuiKey KeyFromGamepad(u8 button) {
 }
 
 float PixelDensity(SDL_WindowID id) {
+#ifdef UNCHARTED_UWP
+    (void)id;
+    return 1.0f;
+#else
     SDL_Window* window = SDL_GetWindowFromID(id);
     const float density = window ? SDL_GetWindowPixelDensity(window) : 1.0f;
     return density > 0.0f ? density : 1.0f;
+#endif
 }
 
 // Marks the settings dirty when a widget changed them.
@@ -480,14 +486,6 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
                                    int(bb_font_ttf_end - bb_font_ttf), 18.0f, &font_config);
 
     const vk::Instance vk_instance = instance.GetInstance();
-    ImGui_ImplVulkan_LoadFunctions(
-        instance.ApiVersion(),
-        [](const char* name, void* user) {
-            return VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr(
-                *static_cast<const vk::Instance*>(user), name);
-        },
-        const_cast<vk::Instance*>(&vk_instance));
-
     const VkFormat color_format = static_cast<VkFormat>(format);
     ImGui_ImplVulkan_InitInfo info{};
     info.ApiVersion = instance.ApiVersion();
@@ -505,7 +503,11 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
         .colorAttachmentCount = 1,
         .pColorAttachmentFormats = &color_format,
     };
-    if (!ImGui_ImplVulkan_Init(&info)) {
+    if (!InitializeVulkanBackend(info,
+        [](const char* name, void* user) {
+            return VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr(
+                *static_cast<const vk::Instance*>(user), name);
+        }, const_cast<vk::Instance*>(&vk_instance))) {
         std::printf("Overlay: ImGui Vulkan backend init failed\n");
         ImGui::DestroyContext();
         return;
@@ -515,6 +517,10 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
 }
 
 void UpdateTextInput(SDL_Window* window) {
+#ifdef UNCHARTED_UWP
+    // No SDL window/text-entry backend is installed in this milestone.
+    (void)window;
+#else
     bool want = false;
     {
         std::scoped_lock lock{imgui_mutex};
@@ -527,6 +533,7 @@ void UpdateTextInput(SDL_Window* window) {
             SDL_StopTextInput(window);
         }
     }
+#endif
 }
 
 bool HandleEvent(const SDL_Event& event) {
@@ -624,7 +631,7 @@ bool Visible() {
 }
 
 bool CapturesInput() {
-    return menu_open || text_entry_active;
+    return initialized && (menu_open || text_entry_active);
 }
 
 void SetTextEntry(bool active, const std::string& prompt, const std::string& text) {

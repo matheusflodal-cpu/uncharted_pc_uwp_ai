@@ -1,3 +1,6 @@
+#ifdef UNCHARTED_UWP
+#include "boot_trace.h"
+#endif
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -369,6 +372,9 @@ bool IsGuestMemoryShaderHLE(unsigned long long pgm_hash) {
 
 bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Regs& regs,
                       const AmdGpu::ComputeProgram& cs_program, Rasterizer& rasterizer) {
+#ifdef UNCHARTED_UWP
+    UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::ShaderHle,info.pgm_hash,reinterpret_cast<uintptr_t>(&rasterizer));
+#endif
     switch (info.pgm_hash) {
     case COPY_SHADER_HASH:
         return ExecuteCopyShaderHLE(info, cs_program, rasterizer);
