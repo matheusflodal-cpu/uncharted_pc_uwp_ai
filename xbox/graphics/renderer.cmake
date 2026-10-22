@@ -97,7 +97,7 @@ add_dependencies(bbgpu host_shaders)
 target_sources(bbgpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
     third_party/imgui/backends/imgui_impl_vulkan.cpp ../xbox/graphics/descriptor_fallback.cpp)
-target_include_directories(bbgpu PRIVATE shim shadps4 ${SHADER_INCLUDE}
+target_include_directories(bbgpu PRIVATE "${UNCHARTED_ROOT}/src" shim shadps4 ${SHADER_INCLUDE}
     third_party/gcn/include third_party/half/include third_party/xbyak
     third_party/imgui third_party/imgui/backends ../xbox/platform ../xbox/platform/compat
     ../xbox/graphics "${UNCHARTED_DEPS}/winpthreads/include")

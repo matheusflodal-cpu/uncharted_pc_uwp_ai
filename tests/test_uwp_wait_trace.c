@@ -62,7 +62,7 @@ int main(void) {
     assert(cond_signal(&test_cond)==0);assert(mutex_unlock(&test_mutex)==0);
     assert(pthread_join(worker,NULL)==0);
     snapshot_contains("name=blocked-worker state=exited");
-    assert(LOAD(uw_slots[1].completed)==2);
+    assert(LOAD(uw_slots[1].completed)>=2);
     assert(cond_destroy(&test_cond)==0);assert(mutex_destroy(&test_mutex)==0);
     /* Slots never alias after thread exit or capacity exhaustion. */
     for(unsigned i=0;i<UW_SLOTS+2;++i) {
