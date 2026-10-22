@@ -8,6 +8,10 @@
 #include <time.h>
 #include <cpuid.h>
 #include "runtime.h"
+#ifdef UNCHARTED_WAIT_TRACE
+#include "runtime_wait_trace.h"
+#include "runtime_poll_profile.h"
+#endif
 #include "gpu/bbgpu.h"
 #if (!defined(__x86_64__) && !defined(_M_X64)) || (!defined(__GNUC__) && !defined(__clang__))
 #error This prototype requires x86-64 GCC or Clang (including MinGW).
@@ -706,6 +710,42 @@ static unsigned char *near_image_memory(size_t size) {
 #endif
     return memory;
 }
+static void install_loading_poll_trace(Segment *segments,uint64_t ns,uint64_t image_size) {
+#ifdef UNCHARTED_WAIT_TRACE
+    const char *enabled=getenv("UNCHARTED_LOADING_TRACE");
+    if(!enabled || strcmp(enabled,"1")) return;
+    int executable=0;
+    for(uint64_t i=0;i<ns;++i) if((segments[i].flags&1) &&
+        UW_POLL_ENTRY>=segments[i].address &&
+        UW_POLL_COMPARE+sizeof(uw_poll_compare)>=segments[i].address &&
+        UW_POLL_COMPARE+sizeof(uw_poll_compare)-segments[i].address<=segments[i].size)
+        executable=1;
+    if(!executable || !mapped(segments,ns,UW_POLL_ENTRY,sizeof(uw_poll_entry)) ||
+       !mapped(segments,ns,UW_POLL_SITE-14,sizeof(uw_poll_loop)) ||
+       !mapped(segments,ns,UW_POLL_COMPARE,sizeof(uw_poll_compare)) ||
+       !uw_poll_match(image,image_size)) {
+        puts("Loading poll profile: not installed (executable signature differs)");return;
+    }
+    if(!uw_poll_avx()) { puts("Loading poll profile: not installed (AVX state unavailable)");return; }
+    unsigned char *thunk=near_image_memory(4096);
+    if(!thunk) { puts("Loading poll profile: not installed (no near executable memory)");return; }
+    const uintptr_t site=(uintptr_t)image+UW_POLL_SITE;
+    size_t bytes=uw_poll_emit(thunk,4096,(uintptr_t)thunk,site,(uintptr_t)uncharted_wait_poll);
+    int32_t jump;
+    if(!bytes || !uw_poll_rel32(site+5,(uintptr_t)thunk,&jump)) {
+        puts("Loading poll profile: not installed (thunk range)");return;
+    }
+    unsigned char *at=image+UW_POLL_SITE;
+    at[0]=0xe9;memcpy(at+1,&jump,4);at[5]=0x90;
+#ifdef _WIN32
+    FlushInstructionCache(GetCurrentProcess(),thunk,bytes);
+    FlushInstructionCache(GetCurrentProcess(),at,6);
+#endif
+    printf("Loading poll profile: installed big3-v1 site=0x%" PRIxPTR " image_offset=0x%" PRIx64 "; per-thread observed values\n",site,UW_POLL_SITE);
+#else
+    (void)segments;(void)ns;(void)image_size;
+#endif
+}
 static void install_game_callbacks(Segment *segments, uint64_t ns, uint64_t image_size) {
     size_t count=0;
     const RuntimeGuestCallback *callbacks=runtime_guest_callbacks(&count);
@@ -1101,6 +1141,7 @@ int main(int argc, char **argv) {
         uint64_t image_end=0;
         for (uint64_t s=0;s<ns;++s) if (segments[s].address+segments[s].size>image_end) image_end=segments[s].address+segments[s].size;
         install_game_callbacks(segments, ns, image_end);
+        install_loading_poll_trace(segments, ns, image_end);
         patch_eop_tick_wait(image_end);
     }
 #ifdef _WIN32

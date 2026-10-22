@@ -877,3 +877,35 @@ eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
 The Linux contract also rejects a mutation that captures inside the sleep
 helper, even with nonzero native call sites. No game dump is available here;
 Xbox 0.6.10, menu and gameplay remain untested.
+
+## v0.6.11 per-thread loading predicate profile
+
+The user supplied plaintext SELF containers for big3, big2 and eboot, plus a
+PLT disc-map file. No decryption was needed and no game binary is committed
+or packaged. See LOADING-ANALYSIS-0.6.10.md for hashes and static findings.
+Absolute sleep caller 0x88c54a is image offset 0x48c54a at base 0x400000.
+The main loop reads object+0x20, compares against a target (equality or signed
+less/equal), and repeats 1 ms pauses. Multiple callers share this routine;
+no particular object, main caller or root cause is established yet.
+
+With task tracing on, an opt-in-by-tracing profile validates three exact code
+signatures and an executable segment before installing a single callback
+at image offset 0x48c54e. Failure skips instrumentation. AVX/OSXSAVE/XCR0
+are checked. Six position-independent MOV bytes are relocated unchanged;
+all comparisons, branches and pauses retain their original instructions.
+The MS-ABI callback receives object, already-read current value, target,
+mode and the return slot from this verified frame. No object dereference,
+stack walk, forced wakeup, state mutation, code skip or additional guest-file IO occurs.
+The thunk saves GPRs/flags and all 16 full YMM registers. Samples use the
+existing bounded per-host-thread slots and stable atomic snapshot sequence.
+A stale last sample does not prove a current wait; count and age are printed.
+
+The Linux native contract executes the production-emitted thunk, checks all
+five MS-ABI arguments and original wait return, relocated MOV effects,
+volatile/callee-saved GPRs, carry flag and every full YMM after a deliberately
+clobbering host callback, disabled tracing, signature mutations, buffer/range
+rejection, invalid object address without dereference and per-thread sample
+isolation. The signatures also match the actual uploaded big3 code. Targeted
+Linux contract passed. The full portable suite also passed (44 Python tests
+and native contracts); Windows validation remains pending.
+No Xbox/menu/gameplay validation for 0.6.11 has been performed.

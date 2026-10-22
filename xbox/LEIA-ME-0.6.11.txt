@@ -1,0 +1,24 @@
+UNCHARTED UWP 0.6.11 — VALORES DA ESPERA NO CARREGAMENTO
+
+Esta versao tenta mostrar qual objeto/valor a tarefa principal esta esperando.
+Nao e uma correcao confirmada para chegar ao menu.
+
+1. Atualize o APPX e selecione o mesmo Uncharted 3 do teste anterior.
+2. Mantenha gpu-sync.txt em normal e gpu-execution.txt em serial.
+3. Mantenha task-trace.txt com on no LocalState. O modelo em Opcoes no ZIP
+   nao e copiado automaticamente pelo APPX.
+4. Inicie normalmente. Se permanecer no carregamento por cerca de dois
+   minutos, feche e guarde loader.log e errors.log antes de reabrir.
+   Se fechar antes, guarde os mesmos dois logs.
+
+O loader imprime Loading poll profile: installed quando as instrucoes
+correspondem ao executavel analisado. Se nao corresponderem, imprime a razao
+sem instalar o rastreamento especifico. Nao precisa editar mais configs.
+As linhas poll_last, abaixo de cada tarefa, mostram a ultima amostra do
+objeto, valor atual, alvo, modo, chamador, contagem e idade da amostra.
+Amostras antigas nao significam que a tarefa continua presa nessa espera.
+
+Os padroes graficos continuam normal/serial, DRED on e task tracing off.
+Este teste requer task tracing on. Nao apague caches nem transfira o jogo
+novamente. O limite automatico continua 15 minutos. Os arquivos do dump nao
+sao alterados. Menu e gameplay ainda nao confirmados. Nenhum jogo incluido.

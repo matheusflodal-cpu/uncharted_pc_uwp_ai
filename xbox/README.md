@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.10)
+## Teste atual (0.6.11)
 
-Veja [LEIA-ME-0.6.10.txt](LEIA-ME-0.6.10.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.11.txt](LEIA-ME-0.6.11.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -328,3 +328,24 @@ inclui esse arquivo como modelo em Opcoes; nao o instala automaticamente.
 O endereco e o retorno da chamada a API, nao o PC atual nem a condicao
 verificada pelo jogo. Outras esperas que usam helpers intermediarios ainda
 podem apresentar enderecos do runtime. Nao ha confirmacao de menu/gameplay.
+
+## v0.6.11: valores observados no laco de carregamento
+
+Com task-trace.txt em on, o loader tenta instalar um perfil restrito ao laco
+big3 analisado. Tres assinaturas (entrada, laco e comparador) precisam
+corresponder. A instalacao acontece antes de executar o jogo, sem alterar os
+arquivos do dump. Falha de assinatura, AVX ou memoria proxima desativa o perfil.
+
+A linha poll_last de cada tarefa mostra object, current, target, mode, caller,
+samples e sample_age_ms. O callback observa o valor que o proprio jogo leu;
+nao dereferencia o objeto. Le apenas o retorno no frame da rotina validada,
+sem caminhada da pilha. Mode 0 indica igualdade, mode 1 menor/igual com sinal.
+O valor e hexadecimal. Caller e absoluto: subtraia a base Guest image at para
+obter o offset no executavel.
+
+poll_last e a ultima amostra; amostras antigas nao provam uma espera atual.
+Samples aumentando e idade pequena ajudam a reconhecer a repeticao ativa.
+O perfil preserva GPRs, flags e os 16 YMM completos. Os dois movimentos de registradores deslocados (seis bytes no total)
+continuam executando antes do comparador original. Nao ha escrita no objeto,
+liberacao artificial de espera ou mudanca de duracao. A finalidade continua
+ser descobrir qual condicao impede o menu. Consulte LOADING-ANALYSIS-0.6.10.md.

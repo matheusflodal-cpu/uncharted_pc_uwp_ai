@@ -31,6 +31,11 @@ target_include_directories(uncharted_sleep_trace_contract PRIVATE "${UNCHARTED_R
 target_compile_definitions(uncharted_sleep_trace_contract PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN _TIMESPEC_DEFINED _MODE_T_ _CRT_SECURE_NO_WARNINGS)
 target_compile_options(uncharted_sleep_trace_contract PRIVATE /clang:-masm=att)
 target_link_libraries(uncharted_sleep_trace_contract PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
+add_executable(uncharted_poll_profile_contract "${UNCHARTED_ROOT}/tests/test_uwp_poll_profile.c" platform/runtime_compat.c)
+target_include_directories(uncharted_poll_profile_contract PRIVATE "${UNCHARTED_ROOT}/src" platform platform/compat "${UNCHARTED_DEPS}/winpthreads/include")
+target_compile_definitions(uncharted_poll_profile_contract PRIVATE UNCHARTED_UWP NOMINMAX WIN32_LEAN_AND_MEAN _TIMESPEC_DEFINED _MODE_T_ _CRT_SECURE_NO_WARNINGS)
+target_compile_options(uncharted_poll_profile_contract PRIVATE /clang:-masm=att)
+target_link_libraries(uncharted_poll_profile_contract PRIVATE WindowsApp "${UNCHARTED_DEPS}/winpthreads/lib/libwinpthread.dll.a")
 add_executable(uncharted_prepare_contract platform/prepare_contract.cpp platform/prepare_game.cpp)
 add_executable(uncharted_boot_trace_contract "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace.cpp"
   "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace_peer.cpp")
