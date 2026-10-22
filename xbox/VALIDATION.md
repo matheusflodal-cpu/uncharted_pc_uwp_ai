@@ -800,3 +800,28 @@ References: Microsoft Learn use-dred and D3D12_AUTO_BREADCRUMB_NODE.
 Support in Xbox Dev Mode is unverified. The defaults combine serial work,
 less tracing and optional DRED; one successful run cannot isolate cause.
 Windows build and Xbox test pending.
+
+### v0.6.9 Windows validation completed
+
+Tested source 651ed7231199da6b528491c84ae5b574f74e0366 passed renderer
+run 39720375729 (Dozen job 119632214153; renderer job 119633010038).
+CPU run 39720375723 and graphics run 39720375724 also passed.
+Actual driver DRED QueryInterface returned S_OK; healthy desktop WARP
+breadcrumb/page-fault queries returned DXGI_ERROR_UNSUPPORTED 0x887a0004
+and were handled without failure. The host test does not enable DRED
+settings, remove the device or execute GPU game work. Successful lost-device
+DRED output traversal and Xbox support remain untested.
+
+Real driver map injection (two failures, two successes), 80 integer shader
+pipelines, 6705 emitter checks, preparation parity, pad, overlay, task/wait
+tracing, boot/dialog tracing, AudioOut, AJM, paging (8242 checks, zero
+corruption), POSIX memory and UWP import checks passed. APPX 0.6.9.0 signed.
+Linux portable checks passed, including 44 Python tests and native contracts.
+
+Packaged Dozen SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+No game dump is available here; no menu/gameplay test was performed.
+
+Primary API documentation:
+https://learn.microsoft.com/windows/win32/direct3d12/use-dred
+https://learn.microsoft.com/windows/win32/api/d3d12/ns-d3d12-d3d12_auto_breadcrumb_node
