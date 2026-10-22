@@ -909,3 +909,26 @@ isolation. The signatures also match the actual uploaded big3 code. Targeted
 Linux contract passed. The full portable suite also passed (44 Python tests
 and native contracts); Windows validation remains pending.
 No Xbox/menu/gameplay validation for 0.6.11 has been performed.
+
+### v0.6.11 Windows validation and signed package
+
+Tested source bcf9db8d8da198daf81d104a698845c3fadd55fc completed all renderer
+build, verification, signing and upload steps successfully in run 39813560640
+(Dozen job 119945993864; renderer job 119946226506). CPU run 39813560943 and
+graphics run 39813560591 also passed. The new loading-poll contract executed
+the production thunk successfully under Windows clang-cl, including the
+five MS-ABI arguments, original guest return slot, GPR/flags/all-YMM
+preservation, invalid object address without reads and thread isolation.
+
+Existing sleep/wait, preparation parity, pad, overlay, boot/dialog, AudioOut,
+actual MP3/ATRAC9 AJM, paging (8242 checks, zero corruption), POSIX memory,
+integer emitter (6705 checks), 80 real-driver shader variants, map injection,
+diagnostic sink and UWP import checks passed. APPX 0.6.11.0 was signed.
+Dozen is unchanged; cached archive digest matches 0.6.9/0.6.10 exactly:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+The contract uses an artificial guest frame and values; the real Xbox wait
+object, target and caller remain unknown until the user test. No full game
+boot, menu or gameplay test was performed here.
