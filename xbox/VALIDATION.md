@@ -970,3 +970,29 @@ References:
 https://learn.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualallocfromapp
 https://learn.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualprotectfromapp
 https://learn.microsoft.com/windows/apps/package-and-deploy/app-capability-declarations
+
+### v0.6.12 Windows validation and signed package
+
+Source 25396d64293419a9417067d915e5241d8e1a317e passed renderer run
+39818389012 (Dozen job 119962796316; renderer job 119962945866), including
+all verification, signing and upload steps. CPU run 39818388966 and graphics
+run 39818388977 also passed. The loading-poll contract passed on Windows
+using the actual VirtualAllocFromApp / VirtualProtectFromApp helpers: old
+RWX allocation rejected, RW then RX protections verified, injected seal
+failure rejected before site publication, production thunk executed with
+MS-ABI arguments, GPR/flags/all-YMM preservation and per-thread samples.
+
+Existing sleep/wait, native preparation parity, pad, overlay, boot/dialog,
+AudioOut, MP3/ATRAC9 AJM, paging and POSIX memory, integer emitter (6705
+checks), 80 real-driver shader variants, map injection, diagnostic sink and
+UWP import checks passed. APPX 0.6.12.0 was signed. The Dozen archive and
+packaged DLL remain byte-identical to 0.6.11; this build changes no graphics
+settings. Renderer artifact 12443408325 SHA256:
+ce17a1192c87f68458100956b05233ca9c72a296092ba16f79f4ab74c636faa0
+Build evidence artifact 12442764408 SHA256:
+4da977d21c41178b775db003efdd4e8bc5cf50d7e804796eb885cd324949e316
+
+These contracts run with synthetic guest data on Windows, not the full game
+in an Xbox AppContainer. Xbox installation of the diagnostic remains to be
+verified by an installed/RW-to-RX sealed line and poll_last samples. The
+DEVICE_HUNG cause, menu and gameplay remain unresolved.
