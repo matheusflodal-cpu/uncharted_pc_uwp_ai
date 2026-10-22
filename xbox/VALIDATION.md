@@ -1117,3 +1117,31 @@ DEVICE_HUNG resolution, menu or gameplay is made.
 Reference for array-layer bounds and mip extents:
 https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdCopyImage.html
 https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdResolveImage.html
+
+### v0.6.14 Windows validation and signed package
+
+Source 3533a3f911f4f4f59dddf5bdb2893644788b1f9a passed renderer run
+39860165813 (Dozen job 120108515069; renderer job 120108629973), including
+all verification, signing and upload steps. CPU run 39860165683 and graphics
+run 39860165625 also passed. The new image-copy range contract passed all
+46656 cases on Windows, using the same helper compiled into vk_runtime.cpp.
+The full renderer, including both copy and resolve command construction,
+compiled and linked. The contract checks metadata and tagged slice updates;
+it does not execute those Vulkan commands or a full game on Xbox.
+
+Existing native preparation parity, pad, overlay, sleep/wait/poll, boot/dialog,
+AudioOut and actual MP3/ATRAC9 AJM, paging/POSIX memory, integer emitter
+(6705 checks), 80 real-driver shader variants, failed-map injection, diagnostic
+sink and UWP imports passed. APPX 0.6.14.0 was signed. Renderer artifact
+12461134017 SHA256:
+e6992dc3c0a058805893f6494001157d969c938ad4bd906e6343cf3c840a19f3
+Build evidence artifact 12461303613 SHA256:
+be3e3b406c38539a141b1d1c1ec7d381e12cdf17cdc5ca5dc8531022ead8d3da
+Dozen cache archive remains byte-identical:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+Normal/serial/task-trace on settings are unchanged for the next console test.
+No shader cache reset is required by this metadata-only command-region change.
+An actual Xbox DEVICE_HUNG fix, menu and gameplay remain unconfirmed.
