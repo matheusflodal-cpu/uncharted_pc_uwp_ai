@@ -1181,6 +1181,73 @@ Keeping native images plus proxies and resampling can add memory/work, so
 this experiment does not guarantee lower RAM, speed or DEVICE_HUNG avoidance.
 The local resolution contract passed configuration defaults/fallback/errors,
 shared preset dimensions, scene-size packing and viewport factor. The full
-portable suite passed (44 Python tests and native contracts). Windows
-validation pending. Actual Xbox proxy draws,
+portable suite passed (44 Python tests and native contracts). Actual Xbox proxy draws,
 visual correctness, menu and gameplay remain untested for 0.6.15.
+
+
+## Review of supplied DEVICE_HUNG hypotheses (0.6.15 source)
+
+The supplied analyses are hypotheses, not established causes. Pipeline creation
+is CPU-side and does not identify the last command executed by the GPU. Pending
+PM4/resource-bind timestamps do not identify a faulting GPU instruction either.
+Unsupported DRED with VA zero means fault details are unavailable, not that a
+page fault was excluded or established.
+
+TileImage already calls DownloadImage and FlushBarriers before tiler dispatch.
+DownloadImage tracks image transfer reads and buffer transfer writes; the
+accumulated memory barrier targets all commands with memory read/write access.
+Conservative barriers off therefore does not mean synchronization is absent.
+This does not prove the existing synchronization is sufficient on Dozen.
+
+The copy paths call Transit without a restricted subresource range. Image's
+GetBarriers transitions all mips/layers, including individually tracked states,
+and its full-image barrier already uses VK_REMAINING_ARRAY_LAYERS. Layer-count
+coercion alone does not establish missing transitions in the remaining layers.
+
+Dense arena expansion appends to std::deque<Buffer> arenas, copies old content,
+and updates the logical views. Old arenas are retained, not destroyed/unmapped
+by GetDenseArena. A WaitIdle added to prevent such a destruction would address
+an unobserved event. Other residency/coherence hazards remain possible. The
+384 MiB pressure headroom is not a cap on unpinned private bytes; 4217/5120 MiB
+alone does not establish exhaustion of that free-budget margin.
+
+A future isolated depth-writeback experiment should capture dispatch dimensions,
+formats, mips/layers, guest/staging/descriptor ranges and establish prior queue
+completion before fencing copy and compute separately. Skipping depth writeback
+can alter data and timing; disappearance of the hang would narrow the search,
+not prove a final fix. No bypass, blanket WaitIdle or extra barrier change is
+mixed into the requested 720p experiment. Existing gpu-sync.txt=conservative
+remains a separate comparison option.
+
+
+## v0.6.15 Windows build and package validation
+
+Source 40dd970a5b98b208fe8d2f6a391873ff46c0a672 passed renderer run
+39863339829 (Dozen 120119271190; renderer 120119386412). CPU run
+39863339764 and graphics run 39863339730 also passed. The full renderer
+compiled and linked; the new resolution contract passed on Windows, including
+720p default, 1080p fallback, invalid input, scene packing and viewport factor.
+The 46656-case copy range contract passed. Both contracts are CPU checks,
+not GPU execution or visual validation.
+
+Existing preparation parity, pad, overlay, wait/sleep/poll, boot/dialog,
+AudioOut and actual MP3/ATRAC9 AJM, paging/POSIX memory, integer emitter
+(6705 checks), 80 real-driver lowered shader pipelines, failed-map injection,
+diagnostic sink and UWP imports passed. The intentionally invalid original
+integer shader was rejected as expected by that negative contract. APPX
+0.6.15.0 was signed; signing/upload steps succeeded.
+
+Renderer artifact 12463855925 SHA256:
+54c229645a0d6c9f6f6311f57f1668cd8fd051dded24bd4dc08bfe2ee68fea15
+Evidence artifact 12463302186 SHA256:
+3a396336c513405920d67cf751a93ec6018b897be22c1fe14145a08c0517fa98
+The Dozen archive remains byte-identical:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+The default console comparison is 720p/normal/serial/task-trace on with the
+same game files; preserve both logs after up to two minutes. Use
+render-resolution.txt=1080p to revert within the same package. Actual reduced
+Xbox draws, output correctness, DEVICE_HUNG avoidance, menu and gameplay
+remain unconfirmed. No depth-writeback bypass was added.
