@@ -39,6 +39,8 @@ target_link_libraries(uncharted_poll_profile_contract PRIVATE WindowsApp "${UNCH
 add_executable(uncharted_prepare_contract platform/prepare_contract.cpp platform/prepare_game.cpp)
 add_executable(uncharted_copy_ranges_contract "${UNCHARTED_ROOT}/tests/test_uwp_copy_ranges.cpp")
 target_compile_options(uncharted_copy_ranges_contract PRIVATE /W3 /EHsc)
+add_executable(uncharted_resolution_contract "${UNCHARTED_ROOT}/tests/test_uwp_resolution.cpp")
+target_compile_options(uncharted_resolution_contract PRIVATE /W3 /EHsc)
 add_executable(uncharted_boot_trace_contract "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace.cpp"
   "${UNCHARTED_ROOT}/tests/test_uwp_boot_trace_peer.cpp")
 target_include_directories(uncharted_boot_trace_contract PRIVATE platform)

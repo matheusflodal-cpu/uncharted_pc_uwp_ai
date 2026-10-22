@@ -3608,7 +3608,13 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         scene_targets->EligibleScene(texture_cache.GetImage(db_desc.first))) scene_started = true;
     // A proxy attachment cannot represent MSAA or a feedback loop that reads the
     // same image through the guest's native descriptor during this draw.
+#ifdef UNCHARTED_UWP
+    // UWP's spatial-only test can scale eligible boot/UI passes too; it does
+    // not depend on the original deferred-scene/camera detection heuristic.
+    bool reduced = upscaler->RasterScaling() && key.num_samples == 1;
+#else
     bool reduced = scene_started && upscaler->RasterScaling() && key.num_samples == 1;
+#endif
     // BB_SCENE_DEBUG=<file>: once the file exists, why the passes of one frame keep the
     // native size (see NoteFrameStart).
     const bool debug_pass = scene_debug_frame && scene_started;
@@ -3885,6 +3891,9 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
 
     if (reduced) {
         // Half-resolution passes keep the scene's factor (proxy / native = scene / 1920).
+#ifdef UNCHARTED_UWP
+        UnchartedBootTrace::Count(UnchartedBootTrace::scaled_draws);
+#endif
         const auto size = scene_targets->Size();
         const auto proxy = pass_size.value_or(size);
         state.width = proxy.width;

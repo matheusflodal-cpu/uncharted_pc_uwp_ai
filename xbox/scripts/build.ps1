@@ -62,7 +62,7 @@ if($GraphicsProbe) {
         }
     }
     $manifest=Join-Path $layout 'AppxManifest.xml'
-    $packageVersion=if($CompileRenderer) { '0.6.14.0' } else { '0.2.0.0' }
+    $packageVersion=if($CompileRenderer) { '0.6.15.0' } else { '0.2.0.0' }
     (Get-Content $manifest -Raw).Replace('Version="0.1.0.0"',"Version=`"$packageVersion`"").Replace('CPU and memory diagnostic;','Graphics bridge diagnostic;') | Set-Content $manifest -Encoding utf8NoBOM
 }
 Write-Output 'Built the diagnostic target. This is not a playable port.'

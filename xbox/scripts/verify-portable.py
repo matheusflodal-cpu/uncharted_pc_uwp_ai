@@ -58,6 +58,9 @@ def main():
     run(cxx,"-std=c++20","-O2","-Wall","-Wextra","-Werror",
         "tests/test_uwp_copy_ranges.cpp","-o",OUT/"copy-ranges-contract")
     run(OUT/"copy-ranges-contract")
+    run(cxx,"-std=c++20","-O2","-Wall","-Wextra","-Werror",
+        "tests/test_uwp_resolution.cpp","-o",OUT/"resolution-contract")
+    run(OUT/"resolution-contract")
     sirit=ROOT / "gpu/third_party/sirit"
     sirit_sources=[sirit/"src/sirit.cpp",sirit/"src/stream.cpp",*sorted((sirit/"src/instructions").glob("*.cpp"))]
     run(cxx,"-std=c++20","-O1","-Igpu/shadps4",f"-I{sirit}/include",f"-I{sirit}/src",

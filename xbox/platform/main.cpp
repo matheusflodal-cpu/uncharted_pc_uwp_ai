@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include "prepare_game.h"
 #include "boot_trace.h"
+#include "render_resolution.h"
 #include "runtime_wait_trace.h"
 #include <string>
 #include <thread>
@@ -197,7 +198,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.14 — bounded image subresource copies");
+    std::puts("Uncharted UWP 0.6.15 — experimental 720p spatial raster scaling");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -222,6 +223,11 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
         FILE* file=uncharted_uwp_fopen((root+"\\"+name).c_str(),"rb");
         const std::string value=line(file);if(file)std::fclose(file);return value;
     };
+    const auto resolution=UnchartedResolution::Parse(read_option("render-resolution.txt"));
+    if(!resolution) throw std::runtime_error("render-resolution.txt must contain 720p or 1080p");
+    _putenv_s("UNCHARTED_RENDER_RESOLUTION",resolution->width==1280?"720p":"1080p");
+    std::printf("UWP requested raster: %ux%u for eligible single-sample targets; native output retained\n",
+                resolution->width,resolution->height);
     const std::string execution=read_option("gpu-execution.txt");
     if(!execution.empty()&&execution!="serial"&&execution!="parallel")
         throw std::runtime_error("gpu-execution.txt must contain serial or parallel");
@@ -250,7 +256,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6.14",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.15",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {

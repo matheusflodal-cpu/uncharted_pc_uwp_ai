@@ -1,6 +1,10 @@
 #include "video_core/renderer_vulkan/vk_temporal_upscaler.h"
 #include "bbport_settings.h"
 #include "video_core/renderer_vulkan/vk_frame_generation.h"
+#include "video_core/renderer_vulkan/vk_scene_resolution.h"
+#include "render_resolution.h"
+#include <cstdlib>
+#include <stdexcept>
 
 namespace Vulkan {
 TemporalUpscaler::TemporalUpscaler(const Instance& i, Scheduler& s, VideoCore::TextureCache& t,
@@ -9,6 +13,13 @@ TemporalUpscaler::TemporalUpscaler(const Instance& i, Scheduler& s, VideoCore::T
     BbSettings::ConfigureUpscalerSupport(false, false);
     BbSettings::Get().upscaler=BbSettings::UpscalerOff;
     BbSettings::Get().frame_gen=BbSettings::FrameGenOff;
+    const char* value=std::getenv("UNCHARTED_RENDER_RESOLUTION");
+    const auto resolution=UnchartedResolution::Parse(value?value:"");
+    if(!resolution) throw std::runtime_error("Invalid UWP render resolution");
+    scene_targets.SetSize({resolution->width,resolution->height});
+    render_width=resolution->width;render_height=resolution->height;
+    BbSettings::Get().active_render_width=render_width;
+    BbSettings::Get().active_render_height=render_height;
 }
 TemporalUpscaler::~TemporalUpscaler() = default;
 void TemporalUpscaler::OnDrawRecorded(u64, VideoCore::ImageId) {}
@@ -17,7 +28,7 @@ void TemporalUpscaler::OnBlendedSceneDraw() {}
 void TemporalUpscaler::OnSceneComposite() {}
 void TemporalUpscaler::OnDispatch(u64) {}
 bool TemporalUpscaler::OnFrameStart() { return false; }
-bool TemporalUpscaler::RasterScaling() const { return false; }
+bool TemporalUpscaler::RasterScaling() const { return scene_targets.Reduced(); }
 float TemporalUpscaler::SceneMipBias() const { return 0; }
 void TemporalUpscaler::OnDraw(u64, VideoCore::ImageId, VideoCore::ImageId, bool) {}
 void TemporalUpscaler::OnColorTarget(VideoCore::ImageId) {}
@@ -30,7 +41,7 @@ struct Fsr4Upscaler::Impl {};
 Fsr4Upscaler::Fsr4Upscaler(const Instance&, Scheduler&) {}
 Fsr4Upscaler::~Fsr4Upscaler() = default;
 bool Fsr4Upscaler::Record(const Frame&) { return false; }
-const char* Fsr4Upscaler::Problem() const noexcept { return "UWP currently uses native resolution"; }
+const char* Fsr4Upscaler::Problem() const noexcept { return "FSR 4 is unavailable on Xbox"; }
 bool Fsr4Upscaler::Fatal() const noexcept { return true; }
 
 struct Dlss::Impl {};

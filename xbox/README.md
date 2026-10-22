@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.14)
+## Teste atual (0.6.15)
 
-Veja [LEIA-ME-0.6.14.txt](LEIA-ME-0.6.14.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.15.txt](LEIA-ME-0.6.15.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -401,3 +401,23 @@ param explicitamente antes de enviar o comando. O caminho 3D de CopyMip fica
 inalterado. O contrato sintetico verifica os limites, mips e preservacao das
 camadas vizinhas. Estas falhas foram reproduzidas com metadados artificiais;
 os logs atuais nao provam que sejam a causa do DEVICE_HUNG no Xbox.
+
+
+## v0.6.15: teste espacial de 720p
+
+Pedido do testador: reduzir a carga para comparar o DEVICE_HUNG. O wrapper
+UWP agora seleciona 720p por padrao; render-resolution.txt no LocalState
+aceita 720p/720 ou 1080p/1080 para voltar ao caminho anterior no mesmo APPX.
+A saida/VideoOut permanece 1920x1080. A reducao usa os proxies/coerencia de
+SceneTargets ja existentes: alvos raster compativeis 1920x1080 passam a
+1280x720, e os compativeis 960x540 passam a 640x360. Nao depende da heuristica
+de inicio de cena/camera que nao cobre os primeiros passes de boot.
+
+Os filtros existentes permanecem: formatos sem suporte, MSAA, arrays,
+feedback, anexos de tamanhos diferentes e alvos de outras dimensoes seguem
+nativos. Dispatches compute nao sao reduzidos. Os alvos originais tambem
+permanecem alocados; pode haver custo adicional de proxies/resolves e nao ha
+garantia de reducao de RAM ou de tempo total. FSR/DLSS/frame generation seguem
+desligados. scaled_draws conta selecoes de draws em proxies, nao conclusoes
+na GPU ou FPS; zero significa que nao foi comprovada reducao naquela etapa.
+A configuracao pedida sozinha nao prova que o jogo tenha renderizado a 720p.

@@ -31,6 +31,7 @@ struct Timeline { std::atomic<U64> owner{0}, cpu{0}, gpu{0}; };
 inline std::array<Timeline,8> timelines;
 inline std::atomic<bool> enabled{false};
 inline std::atomic<U64> origin{0}, untracked{0}, draws{0}, dispatches{0}, flips{0};
+inline std::atomic<U64> scaled_draws{0}; // selected proxy draws, not GPU-completed frames
 inline U64 Now() { return static_cast<U64>(std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::steady_clock::now().time_since_epoch()).count()); }
 // Single command processor publishes samples. The monitor reads only atomics,
@@ -127,8 +128,8 @@ public:
 inline void Snapshot(FILE* out=stdout) {
     if(!enabled.load(std::memory_order_acquire)) return;
     const U64 now=Now();
-    std::fprintf(out,"UWP boot progress: elapsed=%llu ms draws=%llu dispatches=%llu flip_requests=%llu untracked_scopes=%llu\n",
-        now-origin.load(),draws.load(),dispatches.load(),flips.load(),untracked.load());
+    std::fprintf(out,"UWP boot progress: elapsed=%llu ms draws=%llu dispatches=%llu flip_requests=%llu untracked_scopes=%llu scaled_draws=%llu\n",
+        now-origin.load(),draws.load(),dispatches.load(),flips.load(),untracked.load(),scaled_draws.load());
     for(unsigned i=0;i<counters.size();++i) {
         const auto& c=counters[i];
         if(c.started.load()) std::fprintf(out,"  %s started=%llu returned=%llu exceptions=%llu active=%llu\n",

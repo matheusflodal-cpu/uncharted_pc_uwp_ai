@@ -1145,3 +1145,42 @@ eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
 Normal/serial/task-trace on settings are unchanged for the next console test.
 No shader cache reset is required by this metadata-only command-region change.
 An actual Xbox DEVICE_HUNG fix, menu and gameplay remain unconfirmed.
+
+
+## v0.6.14 Xbox result and v0.6.15 requested 720p experiment
+
+Inputs read-only: loader.log (13).txt and errors.log (11).txt. Package 0.6.14,
+normal/serial/task-trace on, game 3. Native preparation and both poll sites
+passed. Last snapshot at 25452 ms: draws 7948, dispatches 4654, flip requests
+756; memory 4217/5120 MiB, swap unused. Bridge acquire pending 1009 ms,
+draw/resource-bind pending 914 ms, PM4 opcode 0x35. This is not proof the
+pending CPU resource-bind caused the GPU failure. Native DEVICE_HUNG
+0x887a0006 returned again; DRED remained unsupported. No Bounding CopyMip or
+invalid-range error appeared; the log does not prove the new bounds path was
+exercised. Exact exit time cannot be inferred from the final heartbeat.
+VideoOut and the CoreWindow bridge recorded 1920x1080.
+
+User requested 720p after discussing GPU timeouts. Version 0.6.15 adds a
+strict startup render-resolution.txt setting (default 720p, explicit 1080p
+fallback) shared between host parsing and the spatial-only UWP wrapper.
+TemporalUpscaler remains disabled; its RasterScaling reports the configured
+SceneTargets proxy size. The UWP rasterizer may select existing proxy
+attachments before the deferred-scene/camera heuristic fires, including boot
+passes. The original eligibility guards remain: no MSAA/array/feedback or
+mismatched attachment sizes, and unsupported formats stay native. Original
+1920x1080 targets, VideoOut/output size and compute dispatch sizes remain.
+No guest executable or shader byte patch is added; no TDR/system setting is
+changed. Existing proxy/native coherence and viewport/FragCoord conversion
+are reused. 720p full-size proxies have 4/9 of native pixel count; compatible
+half-size post targets use 640x360.
+
+The heartbeat adds scaled_draws, counted when reduced attachments and viewport
+are selected. It is not completed GPU work or FPS. Zero provides no evidence
+of reduced work; even a nonzero count does not quantify total GPU savings.
+Keeping native images plus proxies and resampling can add memory/work, so
+this experiment does not guarantee lower RAM, speed or DEVICE_HUNG avoidance.
+The local resolution contract passed configuration defaults/fallback/errors,
+shared preset dimensions, scene-size packing and viewport factor. The full
+portable suite passed (44 Python tests and native contracts). Windows
+validation pending. Actual Xbox proxy draws,
+visual correctness, menu and gameplay remain untested for 0.6.15.

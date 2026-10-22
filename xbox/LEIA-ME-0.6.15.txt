@@ -1,0 +1,24 @@
+UNCHARTED UWP 0.6.15 — TESTE DE RENDERIZACAO INTERNA EM 720p
+
+1. Atualize o APPX e tente o mesmo Uncharted 3. O padrao agora e 720p;
+   nao precisa copiar outro arquivo para ativar.
+2. Mantenha normal + serial + task-trace on. Nao copie o jogo novamente.
+3. Teste por ate dois minutos e guarde loader.log e errors.log antes de
+   abrir novamente. Se sair antes, envie os logs mesmo assim.
+
+A reducao e experimental e parcial: alvos raster compativeis vao para
+1280x720, mas a saida para a TV e o VideoOut continuam em 1920x1080.
+MSAA, formatos/alvos incompativeis e compute seguem nativos. Pode haver
+artefatos ou custo adicional de copias; nao ha correcao confirmada do hang.
+
+O log deve pedir UWP requested raster: 1280x720 e registrar Scene resolution.
+scaled_draws precisa crescer para confirmar selecao de draws reduzidos;
+nao representa quadros concluidos nem FPS.
+
+Para voltar a 1080p sem trocar de APPX: crie render-resolution.txt no
+LocalState com uma linha contendo 1080p e reinicie o aplicativo. Para 720p,
+escreva 720p ou remova esse arquivo. Ha modelos em Opcoes; eles nao sao
+copiados automaticamente pelo APPX. Nao precisa apagar caches.
+
+Limite automatico continua 15 minutos. Menu/gameplay nao confirmados.
+Nenhum arquivo do jogo incluido.
