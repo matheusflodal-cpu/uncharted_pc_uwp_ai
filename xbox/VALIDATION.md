@@ -1036,3 +1036,31 @@ argument, GPR/flags/all-YMM preservation, per-thread isolation, rejection of
 worker signature mutations, and injected second-seal failure before any site
 publication. The full portable suite also passed (44 Python tests and native contracts).
 Windows validation pending. No Xbox/menu or GPU-hang fix is claimed for 0.6.13.
+
+### v0.6.13 Windows validation and signed package
+
+Source a96e425f7bcec4f8eff8bb03c3afee7fa0a47df4 passed full renderer run
+39823333613 (Dozen job 119980013406; renderer job 119980160625), including
+verification, signing and uploads. CPU run 39823332680 and graphics run
+39823332936 passed. The loading-poll contract executed both emitted thunks
+under Windows with the six MS-ABI arguments and original guest return slot,
+GPR/flags/all-YMM preservation, invalid object address without dereference,
+per-thread samples, and failure of the second RX seal before either original
+site was modified. Actual FromApp RW/RX protection checks passed.
+
+Existing sleep/wait, native preparation parity, pad, overlay, boot/dialog,
+AudioOut, MP3/ATRAC9 AJM, paging/POSIX memory, integer emitter (6705 checks),
+80 real-driver shader variants, failed-map injection, diagnostic sink and
+UWP import checks passed. APPX 0.6.13.0 was signed. Renderer artifact
+12446401349 SHA256:
+a8bae07f2b5c74565a066e4e1043b9d4d4f2b2ef4b2af59e6571d489f3e84c01
+Build evidence artifact 12444794748 SHA256:
+57457bc5ba9fa4672e4091b331375d91c03d80e69f73cf2d2ad75f3e48ae99df
+Dozen archive digest remains ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed;
+the packaged DLL remains eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c.
+
+The tests use synthetic guest frames, not the full game on Xbox. Trace
+callbacks add work and may affect timing; each host thread retains only its
+last observed wait, not a complete per-fiber dependency graph. Actual worker
+wait samples, the pending job identity and relation to DEVICE_HUNG remain to
+be checked. No menu/gameplay confirmation or GPU-hang fix is claimed.
