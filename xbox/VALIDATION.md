@@ -1287,7 +1287,8 @@ logged without asserting a 32-bit-plane interpretation. This does not validate
 all shader-generated tiled addresses or establish that any prior access was
 valid. The footprint/config contract passed 4608 independent texel-address
 oracle cases plus real-resolution/overflow/invalid-input checks locally; no GPU
-execution. Full portable and Windows build validation pending.
+execution. The full portable suite passed (44 Python tests and native contracts);
+Windows results are recorded below.
 
 Interpretation: failure in prior leaves the current writeback untested; copy
 failure after prior success narrows to that batch (including transitions and
@@ -1301,3 +1302,36 @@ retained. No menu/gameplay or Xbox fix is claimed.
 
 Fence completion semantics checked against the Vulkan synchronization chapter:
 https://docs.vulkan.org/spec/latest/chapters/synchronization.html
+
+
+## v0.6.16 Windows validation and signed package
+
+Source 0234836f041d4ea8d814fd270413fdc9de8eea31 passed renderer run
+39866363921 (Dozen 120129437257; renderer 120129570743). CPU run
+39866363923 and graphics run 39866363908 passed. The full renderer, including
+CheckpointDepthWriteback and its TileImage call sites, compiled and linked.
+The 4608-case depth-plane footprint/config contract passed on Windows;
+copy-range 46656 cases and the 720p/1080p resolution contract passed. These
+CPU checks do not execute the new fenced batches on a GPU.
+
+Existing native preparation parity, pad, overlay, wait/sleep/poll, boot/dialog,
+AudioOut and actual MP3/ATRAC9 AJM, memory/paging/POSIX, integer emitter
+(6705 checks), 80 lowered real-driver shader pipelines, map-failure injection,
+diagnostic sink and active UWP imports passed. APPX 0.6.16.0 signing and
+artifact upload succeeded. No Xbox checkpoint success or fix is claimed.
+
+Renderer artifact 12463694745 SHA256:
+09c8663d9ef58d0298ee2f423a31c1a4ee2d0ae9699d76d759277713e1c9184c
+Evidence artifact 12464218281 SHA256:
+2eb9a55d644ad8bb3c5051f9f96b7411e85baf828f6c1543ec8d877fab3676d3
+Dozen cache archive remains byte-identical:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+
+The console test uses stages/serial/normal and the retained 720p default.
+Preserve loader.log and errors.log after up to two minutes or an earlier exit.
+Use depth-writeback.txt=off to compare without checkpoints in the same APPX.
+The signed APPX bytes are preserved when wrapping the delivery ZIP with docs
+and optional setting templates. Game data is not included. Menu/gameplay and
+a DEVICE_HUNG fix remain unconfirmed.
