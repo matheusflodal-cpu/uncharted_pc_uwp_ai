@@ -857,3 +857,23 @@ handling and snapshot output. Linux optimized contract passed, and the same cont
 source at the exact-caller assertion. All 44 Python tests and portable
 native contracts passed. Clang is unavailable locally; Windows clang-cl
 build remains pending. Xbox 0.6.10 is untested.
+
+### v0.6.10 Windows validation completed
+
+Tested source 467448645a24f97e34a199ee037b42c6ae4a1b95 passed renderer
+run 39725618903 (Dozen job 119648701550; renderer job 119648794582).
+CPU run 39725618907 and graphics run 39725618923 also passed.
+The new exact-caller sleep contract passed under Windows clang-cl at all
+five actual ABI entries. Wait snapshots, boot/dialog tracing, native
+preparation parity, pad, overlay, AudioOut, actual MP3/ATRAC9 AJM, paging
+(8242 checks, zero corruption), POSIX memory and import checks passed.
+Integer emitter (6705 checks), 80 real driver shader variants, map-failure
+injection and native diagnostic sink contracts passed. APPX 0.6.10.0 signed.
+
+The cached driver artifact matches the 0.6.9 archive SHA256 exactly:
+ab82288d7753f91c5cf8b7c710962328531d3c0ee28f8fa89560e80a8031fbed
+Packaged driver SHA256 remains:
+eb8f415e230984b240cf05237e33f69d637f5f900c6e5600d879edacc989473c
+The Linux contract also rejects a mutation that captures inside the sleep
+helper, even with nonzero native call sites. No game dump is available here;
+Xbox 0.6.10, menu and gameplay remain untested.
