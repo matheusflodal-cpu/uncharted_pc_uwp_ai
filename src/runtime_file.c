@@ -59,6 +59,7 @@ static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
 /* Opt-in diagnostics: separate time in the host read from guest-page copying.
  * Totals may overlap across threads; they are not a frame-time decomposition. */
 static uint64_t io_calls,io_bytes,io_small,io_host_calls,io_host_small;
+static uint64_t io_active,io_errors,io_last_finished_ns;
 static uint64_t io_total_ns,io_host_ns,io_copy_ns,io_mapping_ns,io_max_ns,io_host_max_ns;
 static int io_profile_enabled(void) {
     static int state;
@@ -80,9 +81,17 @@ static void io_max(uint64_t *counter,uint64_t value) {
     uint64_t old=__atomic_load_n(counter,__ATOMIC_RELAXED);
     while(old<value&&!__atomic_compare_exchange_n(counter,&old,value,0,__ATOMIC_RELAXED,__ATOMIC_RELAXED)) {}
 }
+static uint64_t io_started(void) {
+    const uint64_t now=io_now();
+    if(now) __atomic_add_fetch(&io_active,1,__ATOMIC_RELAXED);
+    return now;
+}
 static void io_finished(uint64_t start,uint64_t requested,int64_t result) {
     if(!start) return;
-    const uint64_t elapsed=io_now()-start;
+    const uint64_t now=io_now(),elapsed=now-start;
+    __atomic_sub_fetch(&io_active,1,__ATOMIC_RELAXED);
+    __atomic_store_n(&io_last_finished_ns,now,__ATOMIC_RELAXED);
+    if(result<0) __atomic_add_fetch(&io_errors,1,__ATOMIC_RELAXED);
     __atomic_add_fetch(&io_calls,1,__ATOMIC_RELAXED);
     if(result>0) __atomic_add_fetch(&io_bytes,(uint64_t)result,__ATOMIC_RELAXED);
     if(requested<=4096) __atomic_add_fetch(&io_small,1,__ATOMIC_RELAXED);
@@ -96,6 +105,11 @@ void runtime_file_profile_report(void) {
     const uint64_t host_calls=IO_TAKE(io_host_calls),host_small=IO_TAKE(io_host_small);
     const uint64_t total=IO_TAKE(io_total_ns),host=IO_TAKE(io_host_ns),copy=IO_TAKE(io_copy_ns),mapping=IO_TAKE(io_mapping_ns);
     const uint64_t peak=IO_TAKE(io_max_ns),host_peak=IO_TAKE(io_host_max_ns);
+    const uint64_t now=io_now(),finished=__atomic_load_n(&io_last_finished_ns,__ATOMIC_RELAXED);
+    printf("IO loading: active=%llu errors=%llu last_completion_age_ms=%llu sampled=%s\n",
+        (unsigned long long)__atomic_load_n(&io_active,__ATOMIC_RELAXED),
+        (unsigned long long)IO_TAKE(io_errors),
+        (unsigned long long)(finished&&now>=finished ? (now-finished)/1000000 : 0),finished?"yes":"no");
     printf("IO profile: t=%.3f reads=%llu bytes=%llu small4K=%llu host_reads=%llu host_small4K=%llu total=%.3f host=%.3f copy=%.3f mapping=%.3f max=%.3f host_max=%.3f ms\n",
         io_now()/1e9,(unsigned long long)calls,(unsigned long long)bytes,(unsigned long long)small,
         (unsigned long long)host_calls,(unsigned long long)host_small,total/1e6,host/1e6,copy/1e6,mapping/1e6,peak/1e6,host_peak/1e6);
@@ -444,7 +458,7 @@ int runtime_file_paged_selftest(void *buffer,uint64_t size) {
 static int64_t do_read(int fd,void *buffer,uint64_t size) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
-    const uint64_t started=io_now();
+    const uint64_t started=io_started();
     ssize_t n;
 #ifdef UNCHARTED_UWP
     if(mapped_io_buffer(buffer,size)) n=paged_io(h,buffer,size,0,0,0);
@@ -460,7 +474,7 @@ static int64_t do_read(int fd,void *buffer,uint64_t size) {
 static int64_t do_pread(int fd,void *buffer,uint64_t size,int64_t offset) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
-    const uint64_t started=io_now();
+    const uint64_t started=io_started();
     ssize_t n;
 #ifdef UNCHARTED_UWP
     if(mapped_io_buffer(buffer,size)) n=paged_io(h,buffer,size,offset,1,0);

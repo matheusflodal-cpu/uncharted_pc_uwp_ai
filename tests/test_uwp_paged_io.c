@@ -32,6 +32,7 @@ uintptr_t runtime_lookup(const RuntimeExport *table,size_t count,const char *nam
     return 0;
 }
 int main(void) {
+    assert(setenv("BB_IO_STATS","1",1)==0);
     char path[]="/tmp/uncharted-io-XXXXXX";
     int fd=mkstemp(path); assert(fd>=3);
     const size_t size=(3u<<20)+137;
@@ -60,6 +61,16 @@ int main(void) {
         assert(!memcmp(source,destination,size));
         assert(runtime_file_lseek(guest_fd,0,SEEK_CUR)==(int64_t)size);
     }
+    assert(io_active==0&&io_calls==4&&io_bytes==4*size);
+    assert(io_last_finished_ns>0&&io_errors==0);
+    assert(do_pread(guest_fd,destination,16,-1)==-EINVAL);
+    assert(io_active==0&&io_calls==5&&io_errors==1);
+    /* Reporting resets interval totals, never the active-read gauge or last
+     * completion timestamp. A concurrent reader is represented without locks. */
+    uint64_t pending=io_started(); assert(pending&&io_active==1);
+    runtime_file_profile_report();
+    assert(io_active==1&&io_calls==0&&io_errors==0&&io_last_finished_ns>0);
+    io_finished(pending,0,0); assert(io_active==0&&io_calls==1);
     assert(short_reads>100);
     assert(paged_io(-1,destination,16,0,0,0)==-1&&errno==EBADF);
     assert(paged_io(fd,NULL,0,0,0,0)==0);

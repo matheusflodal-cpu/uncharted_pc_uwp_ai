@@ -24,6 +24,7 @@
 #include <vector>
 
 extern "C" int uncharted_probe_main(int argc,char **argv);
+extern "C" void runtime_file_profile_report(void);
 #ifdef UNCHARTED_GUEST_INPUT
 #include "input.h"
 int UnchartedInputProbe();
@@ -194,7 +195,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.6 — GPU loss diagnostics and conservative synchronization");
+    std::puts("Uncharted UWP 0.6.7 — loading I/O diagnostics and extended boot window");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -207,13 +208,14 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _putenv_s("BB_UPSCALER","off");
     _putenv_s("BB_FRAME_GEN","off");
     _putenv_s("BB_OBJECT_MOTION","0");
+    _putenv_s("BB_IO_STATS","1");
     FILE* sync_settings=uncharted_uwp_fopen((root+"\\gpu-sync.txt").c_str(),"rb");
     const std::string sync_mode=line(sync_settings);
     if(sync_settings) std::fclose(sync_settings);
     if(!sync_mode.empty() && sync_mode!="normal" && sync_mode!="conservative")
         throw std::runtime_error("gpu-sync.txt must contain normal or conservative");
-    _putenv_s("UNCHARTED_FULL_BARRIERS",sync_mode=="normal"?"0":"1");
-    std::printf("GPU sync mode: %s\n",sync_mode=="normal"?"normal":"conservative");
+    _putenv_s("UNCHARTED_FULL_BARRIERS",sync_mode=="conservative"?"1":"0");
+    std::printf("GPU sync mode: %s\n",sync_mode=="conservative"?"conservative":"normal");
 
 #endif
     if(!native_smoke()) { std::puts("STOP: executable-memory smoke failed"); return 1; }
@@ -296,7 +298,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
         if(!ready) throw std::runtime_error("Controle nao detectado antes do boot. Ligue o controle e tente iniciar novamente.");
     }
 #endif
-    watch_for(mode=="boot" ? 300 : 90,mode=="boot" ? "guest boot" : "imports");
+    watch_for(mode=="boot" ? 900 : 90,mode=="boot" ? "guest boot" : "imports");
     std::string prepared=root+"\\Prepared\\u"+game;
     const std::string user=root+"\\user";
     CreateDirectoryFromAppW(winrt::to_hstring(user).c_str(),nullptr);
@@ -305,7 +307,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode=="boot") {
         UnchartedBootTrace::Enable();
-        std::puts("UWP boot trace enabled: heartbeat every 5 seconds; hard boot limit 300 seconds");
+        std::puts("UWP boot trace enabled: heartbeat every 5 seconds; hard boot limit 900 seconds");
         values.erase(std::find(values.begin(),values.end(),"--cpu-only"));
         std::puts("EXPERIMENTAL guest boot: renderer linked; native Xbox input and XAudio2/AJM linked; online and other system guest APIs remain unavailable");
     }
@@ -361,6 +363,7 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
                 const auto now=GetTickCount64();
                 if(UnchartedBootTrace::enabled.load() && now-last>=5000) {
                     UnchartedBootTrace::Snapshot();
+                    runtime_file_profile_report();
 #ifdef UNCHARTED_GUEST_INPUT
                     runtime_pad_boot_snapshot(stdout);
 #endif
@@ -378,8 +381,14 @@ struct View : winrt::implements<View,winrt::Windows::ApplicationModel::Core::IFr
                 }
                 const auto limit=deadline.load();
                 if(limit&&GetTickCount64()>limit) {
-                    std::fprintf(stderr,"STOP: diagnostic phase watchdog phase=%s\n",phase.load());
+                    // Flush the termination reason to both streams before any
+                    // detailed snapshot; GPU workers may fail concurrently.
+                    std::fprintf(stdout,"STOP: diagnostic phase watchdog phase=%s; terminating with exit code 124\n",phase.load());
+                    std::fflush(stdout);
+                    std::fprintf(stderr,"STOP: diagnostic phase watchdog phase=%s; terminating with exit code 124\n",phase.load());
+                    std::fflush(stderr);
                     UnchartedBootTrace::Snapshot();
+                    runtime_file_profile_report();
 #ifdef UNCHARTED_GUEST_INPUT
                     runtime_pad_boot_snapshot(stdout);
 #endif

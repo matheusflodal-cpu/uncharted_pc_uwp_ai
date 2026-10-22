@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.6)
+## Teste atual (0.6.7)
 
-Veja [LEIA-ME-0.6.6.txt](LEIA-ME-0.6.6.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.7.txt](LEIA-ME-0.6.7.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -261,3 +261,17 @@ perda original; a protecao da escrita nula e uma correcao separada.
 O modo padrao e conservative. Para comparacao, LocalState/gpu-sync.txt pode
 conter normal ou conservative. Nao ha alteracao de shaders nesta etapa; a
 conversao inteira da 0.6.5 permanece. O modo pode reduzir desempenho.
+
+## v0.6.7: carregamento em modo normal
+
+No Xbox, conservative parou antes das logos. Normal passou das logos e o
+usuario confirmou a tela de carregamento. O loader registrou atividade ate
+300057 ms (59783 draws, 18202 dispatches, 5563 flip requests). A ultima
+memoria foi 3368/5120 MiB. errors.log terminou com DEVICE_HUNG 0x887a0006.
+A falha coincidiu com a janela de 300 s; nao ha prova de causalidade.
+
+A 0.6.7 usa normal por padrao, amplia o limite de boot para 900 s e publica
+IO profile/IO loading a cada cinco segundos, sem ler memoria guest no monitor.
+O motivo do watchdog e descarregado nos dois logs antes do snapshot final.
+A preparacao segue limitada a 300 s e a listagem de imports a 90 s.
+Nao ha correcao confirmada do carregamento ou de DEVICE_HUNG nesta versao.

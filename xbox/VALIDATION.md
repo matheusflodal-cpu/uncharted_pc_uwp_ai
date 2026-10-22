@@ -706,3 +706,18 @@ The normal app leaves legacy-model and Map fault injection switched off.
 This validates compiler/contracts and failure handling on Windows. The
 conservative barriers' effect on Xbox device loss is unverified until a new
 console test. Logos were confirmed on 0.6.5; menu/gameplay remain pending.
+
+## v0.6.6 Xbox comparison and v0.6.7 loading investigation
+
+Latest attachments loader (14).log / errors (9).log confirm normal mode.
+At 300057 ms: 59783 draws, 18202 dispatches, 5563 flip requests; bridge
+present 5571 returned; last memory 3368/5120 MiB. Guest controller reads
+continued without reported errors. Native DEVICE_HUNG 0x887a0006 was captured.
+No watchdog STOP line was present. Timing alone cannot establish whether
+the configured 300-second limit affected device failure. User confirmed
+logos followed by loading; menu/gameplay remain unconfirmed.
+
+0.6.7 changes only the boot window (900 seconds), default sync mode (normal),
+loading I/O observability and watchdog log flushing. It retains the real
+device-loss failure path and does not bypass commands, errors or loading.
+Windows package validation and Xbox results pending.
