@@ -20,6 +20,7 @@
 #include "prepare_game.h"
 #include "boot_trace.h"
 #include "render_resolution.h"
+#include "depth_writeback.h"
 #include "runtime_wait_trace.h"
 #include <string>
 #include <thread>
@@ -198,7 +199,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _wfreopen_s(&stream,(std::wstring(local)+L"\\errors.log").c_str(),L"w",stderr);
     setvbuf(stdout,nullptr,_IONBF,0); setvbuf(stderr,nullptr,_IONBF,0);
 #ifdef UNCHARTED_LINK_RENDERER
-    std::puts("Uncharted UWP 0.6.15 — experimental 720p spatial raster scaling");
+    std::puts("Uncharted UWP 0.6.16 — isolated depth writeback checkpoints");
 #elif defined(UNCHARTED_GRAPHICS_PROBE)
     std::puts("Uncharted 0.3.6 UWP graphics bridge probe — guest renderer and gameplay are not linked");
 #else
@@ -228,10 +229,18 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     _putenv_s("UNCHARTED_RENDER_RESOLUTION",resolution->width==1280?"720p":"1080p");
     std::printf("UWP requested raster: %ux%u for eligible single-sample targets; native output retained\n",
                 resolution->width,resolution->height);
+    const auto depth_mode=UnchartedDepthWriteback::Parse(read_option("depth-writeback.txt"));
+    if(!depth_mode) throw std::runtime_error("depth-writeback.txt must contain stages or off");
+    const bool depth_stages=*depth_mode==UnchartedDepthWriteback::Mode::Stages;
+    _putenv_s("UNCHARTED_DEPTH_WRITEBACK",depth_stages?"stages":"off");
+    std::printf("Depth writeback diagnostics: %s (first 32 Depth2DThin64_32 writebacks)\n",
+                depth_stages?"stages":"off");
     const std::string execution=read_option("gpu-execution.txt");
     if(!execution.empty()&&execution!="serial"&&execution!="parallel")
         throw std::runtime_error("gpu-execution.txt must contain serial or parallel");
     const bool serial=execution!="parallel";
+    if(depth_stages && !serial)
+        throw std::runtime_error("Depth writeback stages require gpu-execution.txt=serial; use depth-writeback.txt=off for parallel");
     _putenv_s("BB_DRAW_PIPE",serial?"0":"");
     _putenv_s("BB_VK_RECORD_THREAD",serial?"0":"");
     _putenv_s("BB_COPY_THREADS",serial?"0":"");
@@ -256,7 +265,7 @@ static int load(const winrt::Windows::UI::Core::CoreDispatcher& dispatcher) {
     if(settings) std::fclose(settings);
 #ifdef UNCHARTED_LINK_RENDERER
     if(mode.empty()||mode=="menu") {
-        int action=choose(dispatcher,L"Uncharted UWP 0.6.15",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
+        int action=choose(dispatcher,L"Uncharted UWP 0.6.16",L"Escolha uma etapa. A inicializacao do jogo ainda e experimental.",
                           {L"Selecionar jogo",L"Diagnosticos",L"Sair"});
         if(action<0||action==2) return 0;
         if(action==1) {

@@ -196,6 +196,8 @@ jobs:
         run: |
           & ./xbox/.local/build/uncharted_copy_ranges_contract.exe
           if($LASTEXITCODE) { throw "Image copy range contract failed: $LASTEXITCODE" }
+          & ./xbox/.local/build/uncharted_depth_writeback_contract.exe
+          if($LASTEXITCODE) { throw "Depth writeback range contract failed: $LASTEXITCODE" }
           & ./xbox/.local/build/uncharted_resolution_contract.exe
           if($LASTEXITCODE) { throw "UWP resolution contract failed: $LASTEXITCODE" }
           & ./xbox/.local/build/uncharted_renderer_contract.exe
@@ -212,7 +214,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Uncharted-UWP-renderer-integration
-          path: xbox/.local/packages/UnchartedUwpProbe-0.6.15.0.zip
+          path: xbox/.local/packages/UnchartedUwpProbe-0.6.16.0.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

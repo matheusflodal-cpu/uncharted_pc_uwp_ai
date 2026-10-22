@@ -3,6 +3,11 @@
 
 #ifdef UNCHARTED_UWP
 #include "boot_trace.h"
+#include "depth_writeback.h"
+#include <atomic>
+#include <cstdio>
+#include <cstdlib>
+#include <stdexcept>
 #endif
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -298,6 +303,40 @@ void TileManager::TileImage(Image& in_image, std::span<vk::BufferImageCopy> buff
         return;
     }
 
+#ifdef UNCHARTED_UWP
+    static const bool trace_enabled = [] {
+        const char* text = std::getenv("UNCHARTED_DEPTH_WRITEBACK");
+        return UnchartedDepthWriteback::Parse(text ? text : "off") ==
+               UnchartedDepthWriteback::Mode::Stages;
+    }();
+    static std::atomic<u64> traced{0};
+    const u64 trace_id = trace_enabled && info.tile_mode == AmdGpu::TileMode::Depth2DThin64 &&
+                                 info.num_bits == 32
+                            ? traced.fetch_add(1) + 1 : 0;
+    // Bound intrusive submissions/logging if the title progresses into gameplay.
+    const bool trace = trace_id && trace_id <= 32;
+    if (trace_id == 33) {
+        std::puts("Depth writeback: stage checkpoint budget exhausted after 32 operations");
+        std::fflush(stdout);
+    }
+    if (trace) {
+        std::printf("Depth writeback #%llu begin guest=%#llx bytes=%u image=%ux%ux%u "
+                    "mips=%u layers=%u samples=%u format=%s depth=%u stencil=%u "
+                    "copies=%zu out_offset=%llu out_capacity=%llu bank_swizzle=%u\n",
+                    trace_id, info.guest_address, info.guest_size, info.size.width,
+                    info.size.height, info.size.depth, info.resources.levels,
+                    info.resources.layers, info.num_samples, vk::to_string(info.pixel_format).c_str(),
+                    info.props.is_depth, info.props.has_stencil, buffer_copies.size(), out_offset,
+                    static_cast<u64>(out_buffer->SizeBytes()), info.bank_swizzle);
+        std::fflush(stdout);
+        if (buffer_copies.empty() || buffer_copies.size() > 16 ||
+            !UnchartedDepthWriteback::Contains(out_buffer->SizeBytes(), out_offset, info.guest_size))
+            throw std::runtime_error("Depth writeback: invalid mip count or output descriptor range");
+        runtime.FlushBarriers();
+        scheduler.CheckpointDepthWriteback(trace_id, "prior");
+    }
+#endif
+
     TilingInfo params{};
     params.bank_swizzle = info.bank_swizzle;
     params.num_slices = info.props.is_volume ? info.size.depth : info.resources.layers;
@@ -317,13 +356,64 @@ void TileManager::TileImage(Image& in_image, std::span<vk::BufferImageCopy> buff
         .range = sizeof(params),
     };
 
-    const auto staging = runtime.GetStagingPool().Request(info.guest_size, MemoryType::DeviceLocal);
+    const auto staging = runtime.GetStagingPool().Request(info.guest_size, MemoryType::DeviceLocal, 0,
+#ifdef UNCHARTED_UWP
+                                                         trace
+#else
+                                                         false
+#endif
+    );
+#ifdef UNCHARTED_UWP
+    if (trace) {
+        std::printf("Depth writeback #%llu staging_offset=%llu staging_capacity=%llu "
+                    "descriptor_bytes=%u dispatch_x=%u params_offset=%llu params_bytes=%zu\n",
+                    trace_id, staging.offset, static_cast<u64>(staging.buffer->SizeBytes()),
+                    info.guest_size, (info.guest_size / 4) / 64, params_buffer_info.offset,
+                    sizeof(params));
+        for (u32 mip = 0; mip < buffer_copies.size(); ++mip) {
+            const auto& c = buffer_copies[mip];
+            const auto& layout = info.mips_layout[mip];
+            // This footprint is exact only for the 32-bit depth plane; other
+            // aspects/formats are logged without asserting that interpretation.
+            const bool plane32 = c.imageSubresource.aspectMask == vk::ImageAspectFlagBits::eDepth &&
+                (info.pixel_format == vk::Format::eD32Sfloat ||
+                 info.pixel_format == vk::Format::eD32SfloatS8Uint ||
+                 info.pixel_format == vk::Format::eD24UnormS8Uint ||
+                 info.pixel_format == vk::Format::eX8D24UnormPack32);
+            const auto footprint = UnchartedDepthWriteback::CopyBytes32(
+                c.imageExtent.width, c.imageExtent.height, c.imageExtent.depth,
+                c.imageSubresource.layerCount, c.bufferRowLength, c.bufferImageHeight);
+            const bool fits = footprint && UnchartedDepthWriteback::Contains(
+                info.guest_size, c.bufferOffset, *footprint);
+            std::printf("Depth writeback #%llu copy=%u mip=%u base_layer=%u layers=%u "
+                        "extent=%ux%ux%u row=%u height=%u offset=%llu aspect=%u "
+                        "plane32=%u footprint=%llu fits_guest=%u "
+                        "layout_size=%u layout_pitch=%u layout_height=%u layout_offset=%u\n",
+                        trace_id, mip, c.imageSubresource.mipLevel,
+                        c.imageSubresource.baseArrayLayer, c.imageSubresource.layerCount,
+                        c.imageExtent.width, c.imageExtent.height, c.imageExtent.depth,
+                        c.bufferRowLength, c.bufferImageHeight, c.bufferOffset,
+                        static_cast<u32>(c.imageSubresource.aspectMask), plane32,
+                        footprint.value_or(0), fits, layout.size, layout.pitch,
+                        layout.height, layout.offset);
+            std::fflush(stdout);
+            if (plane32 && !fits)
+                throw std::runtime_error("Depth writeback: copy exceeds guest-sized staging range");
+        }
+        if (!UnchartedDepthWriteback::Contains(staging.buffer->SizeBytes(), staging.offset, info.guest_size))
+            throw std::runtime_error("Depth writeback: staging descriptor exceeds buffer");
+    }
+#endif
     for (auto& copy : buffer_copies) {
         copy.bufferOffset += staging.offset;
     }
 
     runtime.DownloadImage(&in_image, staging.buffer, buffer_copies);
     runtime.FlushBarriers();
+
+#ifdef UNCHARTED_UWP
+    if (trace) scheduler.CheckpointDepthWriteback(trace_id, "copy");
+#endif
 
     const vk::DescriptorBufferInfo tiled_buffer_info{
         .buffer = out_buffer->Handle(),
@@ -337,12 +427,27 @@ void TileManager::TileImage(Image& in_image, std::span<vk::BufferImageCopy> buff
     };
     const auto dim_x = static_cast<u32>((info.guest_size / (info.num_bits / 8)) / 64);
     // bbport: recorded with copies of the descriptor infos (threaded recording).
+#ifdef UNCHARTED_UWP
+    if (trace) {
+        std::printf("Depth writeback #%llu tiler_pipeline_begin\n", trace_id);
+        std::fflush(stdout);
+    }
+#endif
     RecordTilingDispatch(GetTilingPipeline(info, true), tiled_buffer_info, linear_buffer_info,
                          params_buffer_info, dim_x);
 
     runtime.AccessBuffer(out_buffer, out_offset, info.guest_size,
                          vk::PipelineStageFlagBits2::eComputeShader,
                          vk::AccessFlagBits2::eShaderWrite);
+#ifdef UNCHARTED_UWP
+    if (trace) {
+        runtime.FlushBarriers();
+        scheduler.CheckpointDepthWriteback(trace_id, "tiler");
+        runtime.GetStagingPool().FreeDeferred(staging);
+        std::printf("Depth writeback #%llu complete\n", trace_id);
+        std::fflush(stdout);
+    }
+#endif
 }
 
 } // namespace VideoCore

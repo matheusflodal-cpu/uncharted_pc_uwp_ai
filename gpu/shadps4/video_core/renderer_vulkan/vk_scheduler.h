@@ -691,6 +691,12 @@ public:
     /// Sends the current execution context to the GPU and waits for it to complete.
     void Finish();
 
+#ifdef UNCHARTED_UWP
+    // Diagnostic split within one logical scheduler tick. Does not retire
+    // allocations for the draw currently being prepared or invoke submit callbacks.
+    void CheckpointDepthWriteback(u64 id, const char* phase);
+#endif
+
     /// bbport: waits for the work submitted so far but leaves the command buffer being
     /// recorded open, so a CommandBuffer() the caller holds stays valid (Finish() submits it:
     /// recording into a submitted buffer crashes AMD's driver).

@@ -431,6 +431,59 @@ void Scheduler::WaitSubmitted() {
     }
 }
 
+#ifdef UNCHARTED_UWP
+void Scheduler::CheckpointDepthWriteback(u64 id, const char* phase) {
+    // TileImage is called while preparing a draw, outside SubmitExecution.
+    // Serial mode is required by the host configuration. Never call Finish:
+    // its NextTick/callbacks could recycle allocations prepared for this draw.
+    ASSERT(!recording_threaded);
+    const auto device = instance.GetDevice();
+    auto fence = Check(device.createFenceUnique({}));
+    const auto started = GetTickCount64();
+    std::printf("Depth writeback #%llu phase=%s submit_begin tick=%llu\n",
+                id, phase, CurrentTick());
+    std::fflush(stdout);
+    EndRendering();
+    SyncRecording();
+    WaitHostCopies();
+    Check(current_cmdbuf.end());
+    const vk::SubmitInfo info{.commandBufferCount = 1, .pCommandBuffers = &current_cmdbuf};
+    vk::Result result;
+    {
+        std::scoped_lock lock{submit_mutex};
+        result = instance.GetGraphicsQueue().submit(info, *fence);
+    }
+    std::printf("Depth writeback #%llu phase=%s submitted result=%s\n",
+                id, phase, vk::to_string(result).c_str());
+    std::fflush(stdout);
+    if (result == vk::Result::eErrorDeviceLost) DeviceLost(device);
+    Check(result);
+    {
+        UnchartedBootTrace::Scope trace(UnchartedBootTrace::Kind::GpuWait, id,
+                                        reinterpret_cast<uintptr_t>(this));
+        u64 reported = 0;
+        do {
+            result = device.waitForFences(*fence, true, 100'000'000);
+            const u64 elapsed = GetTickCount64() - started;
+            if (result == vk::Result::eTimeout && elapsed >= reported + 1000) {
+                std::printf("Depth writeback #%llu phase=%s waiting elapsed_ms=%llu\n",
+                            id, phase, elapsed);
+                std::fflush(stdout);
+                reported = elapsed;
+            }
+        } while (result == vk::Result::eTimeout);
+    }
+    std::printf("Depth writeback #%llu phase=%s fence_result=%s elapsed_ms=%llu\n",
+                id, phase, vk::to_string(result).c_str(), GetTickCount64() - started);
+    std::fflush(stdout);
+    if (result == vk::Result::eErrorDeviceLost) DeviceLost(device);
+    Check(result);
+    // The fence, not the scheduler timeline, proves completion of this batch.
+    // Retain the same logical tick until the ordinary submission retires it.
+    AllocateWorkerCommandBuffers();
+}
+#endif
+
 void Scheduler::Wait(u64 tick) {
     if (tick >= work_semaphore.CurrentTick()) {
         // Make sure we are not waiting for the current tick without signalling

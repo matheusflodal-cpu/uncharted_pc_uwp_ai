@@ -1251,3 +1251,53 @@ same game files; preserve both logs after up to two minutes. Use
 render-resolution.txt=1080p to revert within the same package. Actual reduced
 Xbox draws, output correctness, DEVICE_HUNG avoidance, menu and gameplay
 remain unconfirmed. No depth-writeback bypass was added.
+
+
+## v0.6.15 Xbox result and v0.6.16 depth-writeback isolation
+
+Read-only inputs: loader (16).log and errors (11).log. 0.6.15, game 3,
+normal/serial/task-trace on, 720p requested. scaled_draws reached 1899:
+eligible reduced raster states were selected, not proof of completed frames.
+At 25396 ms: draws 7767, dispatches 4552, flip requests 754, memory 4011 MiB.
+At 30396 ms the same counters remained; memory 3977/5120 MiB, no swap use,
+I/O active=0 errors=0. All draw_record/resource_bind scopes returned. GPU wait
+1507 and bridge acquire remained pending for 5277/5276 ms; known draw timeline
+1506, next 1510. PM4 opcode 0x10, not the earlier run's 0x35. DEVICE_HUNG
+0x887a0006 recurred after the last depth32 tiler creation log; DRED unsupported.
+No specific GPU instruction is identified. Lower selected raster work did not
+avoid the failure in this run, and reduced RAM alone does not explain cause.
+
+0.6.16 adds default stages mode (depth-writeback.txt=off reverts). First 32
+Depth2DThin64_32 writebacks checkpoint prior queued work, image-to-buffer copy
+and compute tiler separately. Direct fence submissions retain the scheduler's
+logical tick and do not run ordinary submission callbacks or retirement. A
+normal Finish inside resource preparation could retire allocations still
+needed by that draw; this diagnostic intentionally avoids it. Command buffers
+are renewed only after the fence completes; dynamic state is invalidated as
+usual. Queue submit is externally synchronized with the existing submit mutex;
+the wait does not hold that mutex. Serial host configuration is required.
+The staging allocation is held/deferred across checkpoints and freed after the
+compute fence; no guest writeback is skipped. Existing resource barriers remain.
+
+Metadata includes guest/output/staging ranges, dimensions, samples, format,
+mip layout, subresource regions, dispatch count and parameter offset. Known
+32-bit depth copy footprints use checked 64-bit arithmetic; invalid descriptor
+or copy bounds stop before recording the offending copy. Other formats are
+logged without asserting a 32-bit-plane interpretation. This does not validate
+all shader-generated tiled addresses or establish that any prior access was
+valid. The footprint/config contract passed 4608 independent texel-address
+oracle cases plus real-resolution/overflow/invalid-input checks locally; no GPU
+execution. Full portable and Windows build validation pending.
+
+Interpretation: failure in prior leaves the current writeback untested; copy
+failure after prior success narrows to that batch (including transitions and
+auxiliary sample/proxy copies); tiler failure after copy success narrows to the
+compute batch and its barriers, not necessarily a particular instruction.
+If all stages complete, investigate subsequent work. Timing, command-buffer
+boundaries and dedicated staging differ; disappearance of the hang is not a
+confirmed fix. The diagnostic is bounded to 32 writebacks and can be disabled
+in the same package. 720p/output/normal synchronization settings are otherwise
+retained. No menu/gameplay or Xbox fix is claimed.
+
+Fence completion semantics checked against the Vulkan synchronization chapter:
+https://docs.vulkan.org/spec/latest/chapters/synchronization.html

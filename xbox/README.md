@@ -6,9 +6,9 @@ Base: SuperMedo/uncharted_pc v0.3.6, commit
 A adaptação usa componentes de Cosmo/gow3_xbox
 `d0975c91d827045724230476c1527cd38afd72f4`, preservando os ajustes do Uncharted.
 
-## Teste atual (0.6.15)
+## Teste atual (0.6.16)
 
-Veja [LEIA-ME-0.6.15.txt](LEIA-ME-0.6.15.txt). Atualize o pacote e escolha
+Veja [LEIA-ME-0.6.16.txt](LEIA-ME-0.6.16.txt). Atualize o pacote e escolha
 **Selecionar jogo → Uncharted 3 → Tentar iniciar**. Envie os dois logs dessa
 tentativa. Não é necessário repetir o teste do controle nem copiar o dump.
 
@@ -421,3 +421,27 @@ garantia de reducao de RAM ou de tempo total. FSR/DLSS/frame generation seguem
 desligados. scaled_draws conta selecoes de draws em proxies, nao conclusoes
 na GPU ou FPS; zero significa que nao foi comprovada reducao naquela etapa.
 A configuracao pedida sozinha nao prova que o jogo tenha renderizado a 720p.
+
+
+## v0.6.16: checkpoints do writeback de profundidade
+
+A 0.6.15 selecionou 1899 draws reduzidos no Xbox, mas terminou com DEVICE_HUNG.
+A 0.6.16 separa os primeiros 32 writebacks Depth2DThin64_32 em tres lotes:
+trabalho anterior, copia da imagem e compute do tiler. Cada lote espera uma
+fence propria; o log distingue envio de conclusao real da GPU. Nao e bypass
+nem correcao confirmada. O teste muda timing e alocacao temporaria, podendo
+alterar a reproducao. Se todos os checkpoints passarem e o hang sumir, isso
+nao prova qual sincronizacao ou operacao era a causa.
+
+O checkpoint nao avanca o tick logico do scheduler nem executa callbacks de
+fim de submissao: isso evita aposentar alocacoes preparadas para o draw ainda
+em montagem. O staging fica reservado ate a conclusao do compute. Metadados
+de mips, camadas, formatos, offsets, footprint do plano depth32 e descritores
+sao registrados; bounds invalidos conhecidos interrompem com erro explicito.
+Esses limites nao validam todos os indices produzidos pelo shader.
+
+Padrao: depth-writeback.txt=stages (arquivo ausente tambem ativa), modo serial,
+720p e gpu-sync normal. Para comparar sem checkpoints no mesmo APPX, use
+depth-writeback.txt=off. Parallel exige off. A saida permanece 1080p e nao e
+necessario apagar caches/copiar novamente o dump. O teste no Xbox ainda e
+necessario; menu/gameplay nao confirmados.
